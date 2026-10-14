@@ -65,11 +65,16 @@ async function main() {
 
   // 5. Popularity Ranklist
   const ranklist = await client.getRanklist({ limit: 5 });
-  recordStep('popularity_ranklist', Array.isArray(ranklist.items) && ranklist.items.length > 0, {
-    engine: ranklist.engine,
-    count: ranklist.items?.length || 0,
-    topEventId: ranklist.items?.[0]?.id || null,
-  });
+  recordStep(
+    'popularity_ranklist',
+    Array.isArray(ranklist.items) && ranklist.items.length > 0 && Boolean(ranklist.items[0].title),
+    {
+      engine: ranklist.engine,
+      count: ranklist.items?.length || 0,
+      topEventId: ranklist.items?.[0]?.id || null,
+      topEventTitle: ranklist.items?.[0]?.title || null,
+    }
+  );
 
   // 6. Special Topics
   const topics = await client.getTopics({ limit: 5 });

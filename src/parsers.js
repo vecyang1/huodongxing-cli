@@ -253,7 +253,7 @@ export function filterRowsByDateRange(rows, options = {}) {
 }
 
 function normalizeUrl(href) {
-  const raw = String(href ?? '').trim();
+  const raw = decodeHtmlEntities(String(href ?? '')).trim();
   if (!raw) return '';
   if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
   if (raw.startsWith('//')) return `https:${raw}`;
@@ -868,11 +868,13 @@ export function parseRanklistHtml(html, limit = 20) {
     const id = linkMatch?.[2] || '';
     if (!id || seen.has(id)) continue;
 
-    const titleMatch = part.match(/<div[^>]*class=["'][^"']*item-title[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
-    const timeMatch = part.match(/<div[^>]*class=["'][^"']*item-data[^"']*["'][^>]*>[\s\S]*?<p[^>]*>([\s\S]*?)<\/p>/i);
-    const locMatch = part.match(/<div[^>]*class=["'][^"']*item-dress-pp[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
-    const orgMatch = part.match(/<div[^>]*class=["'][^"']*user-name[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
-    const heatMatch = part.match(/<div[^>]*class=["'][^"']*item-look[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
+    const titleMatch = part.match(/<(?:p|div)[^>]*class=["'][^"']*item-title[^"']*["'][^>]*>([\s\S]*?)<\/(?:p|div)>/i)
+      || part.match(/<img[^>]*class=["'][^"']*item-logo[^"']*["'][^>]*\btitle=["']([^"']+)["']/i);
+    const timeMatch = part.match(/<p[^>]*class=["'][^"']*item-data[^"']*["'][^>]*>([\s\S]*?)<\/p>/i)
+      || part.match(/<div[^>]*class=["'][^"']*item-data[^"']*["'][^>]*>[\s\S]*?<p[^>]*>([\s\S]*?)<\/p>/i);
+    const locMatch = part.match(/<(?:p|div)[^>]*class=["'][^"']*item-dress-pp[^"']*["'][^>]*>([\s\S]*?)<\/(?:p|div)>/i);
+    const orgMatch = part.match(/<(?:p|div|span)[^>]*class=["'][^"']*user-name[^"']*["'][^>]*>([\s\S]*?)<\/(?:p|div|span)>/i);
+    const heatMatch = part.match(/<(?:p|div|span)[^>]*class=["'][^"']*item-look[^"']*["'][^>]*>([\s\S]*?)<\/(?:p|div|span)>/i);
 
     seen.add(id);
     rows.push({

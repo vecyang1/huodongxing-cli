@@ -163,20 +163,40 @@ test('SSOT HTML & Inline JSON parsers across all 12 functional areas', () => {
   assert.equal(orgs[0].eventsCount, 42);
   assert.equal(orgs[0].followers, 3600);
 
-  // 5. Ranklist
+  // 5. Ranklist (both <div> and production <p> card structures)
   const rankHtml = `
     <div class="popularity-son-item">
-      <a class="popularity-son-item-right" href="/event/9872593983600"></a>
-      <div class="item-title">Community Day 2026 · 深圳</div>
-      <div class="item-data"><p>10/25 14:00</p></div>
-      <div class="item-dress-pp">深圳 南山</div>
-      <div class="item-look">9850</div>
+      <a class="popularity-son-item-right" href="/event/9872593983600?utm_source=rank&amp;utm_medium=web">
+        <div class="item-title">Community Day 2026 · 深圳</div>
+        <div class="item-data"><p>10/25 14:00</p></div>
+        <div class="item-dress-pp">深圳 南山</div>
+        <div class="item-look">9850</div>
+      </a>
+    </div>
+    <div class="popularity-son-item flex">
+      <a class="flex popularity-son-item-right" href="/event/5879898107700?utm_source=rank&amp;utm_medium=web">
+        <img class="item-logo" title="AI's Next Frontier｜2026 AI Cloud 100 China 榜单发布暨线下峰会" />
+        <div class="item-content">
+          <p class="item-title">AI's Next Frontier｜2026 AI Cloud 100 China 榜单发布暨线下峰会</p>
+          <p class="item-data flex"><span class="item-data-icon icon"></span>2026.10.16 - 2026.10.16</p>
+          <div class="item-dress flex">
+            <span class="item-dress-icon icon"></span>
+            <p class="item-dress-pp">上海静安江场三路258号</p>
+          </div>
+        </div>
+      </a>
     </div>
   `;
   const ranks = parsers.parseRanklistHtml(rankHtml);
-  assert.equal(ranks.length, 1);
+  assert.equal(ranks.length, 2);
   assert.equal(ranks[0].id, '9872593983600');
+  assert.equal(ranks[0].title, 'Community Day 2026 · 深圳');
   assert.equal(ranks[0].heatScore, 9850);
+  assert.equal(ranks[1].id, '5879898107700');
+  assert.equal(ranks[1].title, "AI's Next Frontier｜2026 AI Cloud 100 China 榜单发布暨线下峰会");
+  assert.equal(ranks[1].time, '2026.10.16 - 2026.10.16');
+  assert.equal(ranks[1].location, '上海静安江场三路258号');
+  assert.ok(!ranks[1].url.includes('&amp;'));
 
   // 6. Special Topics
   const topicHtml = `
