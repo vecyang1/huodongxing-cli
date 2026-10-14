@@ -1,0 +1,30 @@
+{
+  "tool": "rea analyze-javascript-application",
+  "target": "https://cdn.huodongxing.com/Content/v2.0/hdx-admin/js/hdx-message-center.js?v=v6.11.2 & hdx-new-admin.js",
+  "capturedAt": "2026-10-14T22:30:00+08:00",
+  "findings": {
+    "hawkAuthScheme": {
+      "algorithm": "sha256",
+      "storageKeys": [
+        { "namespace": "local-storage", "key": "appId", "fallback": "acd8Bg", "source": "hdx-message-center.js:51" },
+        { "namespace": "local-storage", "key": "appToken", "fallback": "<redacted-public-client-key>", "source": "hdx-message-center.js:52" }
+      ],
+      "mechanism": "hawk.client.header(url, method, { credentials: { id, key, algorithm: 'sha256' } })"
+    },
+    "messageTypes": {
+      "3000": "活动已公开发布",
+      "3001": "活动未公开发布",
+      "3002": "活动未通过审核",
+      "3003": "报名进展播报"
+    },
+    "consoleAdminEndpoints": [
+      { "method": "POST", "path": "/console/userpubevents", "params": ["page", "size", "status", "keywords", "order"] },
+      { "method": "POST", "path": "/myevent/SetEventStarMark" },
+      { "method": "POST", "path": "/myevent/delay" },
+      { "method": "POST", "path": "/myevent/cancelcheck" },
+      { "method": "POST", "path": "/myevent/cancel" },
+      { "method": "POST", "path": "/myevent/hide_event" },
+      { "method": "POST", "path": "/myevent/setprivate" }
+    ]
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "name": "huodongxing-cli",
+  "version": "1.0.0",
+  "description": "Agentic CLI, JavaScript SDK, and OpenCLI adapter suite for Huodongxing (活动行) event discovery, ticket passes, iCal export, attendee center, and organizer console automation",
+  "type": "module",
+  "main": "src/index.js",
+  "bin": {
+    "huodongxing": "./bin/huodongxing.js",
+    "hdx": "./bin/huodongxing.js"
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "smoke": "node scripts/smoke.js",
+    "start": "node bin/huodongxing.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vecyang1/huodongxing-cli.git"
+  },
+  "keywords": [
+    "huodongxing",
+    "hdx",
+    "events",
+    "tickets",
+    "icalendar",
+    "opencli",
+    "agentic",
+    "automation",
+    "cli"
+  ],
+  "author": "Vec Yang <vecyang1@users.noreply.github.com>",
+  "license": "AGPL-3.0-or-later",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,0 +1,27 @@
+node_modules/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+coverage/
+tmp/
+dist/
+*.tgz
+
+# Local AI workspace & governance files (kept on local disk, excluded from public GitHub repo)
+graphify-out/
+operations/
+resources/
+docs/README.md
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+CODEX.md
+VAULT.md
+FILE_MAP_INDEX.md
+decisions.md
+handoff.md
+progress.md
+task_plan.md
+findings.md

@@ -1,0 +1,147 @@
+{
+  "platform": "Huodongxing (活动行)",
+  "domain": "www.huodongxing.com",
+  "capturedAt": "2026-10-14T22:25:00+08:00",
+  "engineModes": ["auto", "direct", "opencli"],
+  "wafProfile": {
+    "gateway": "OpenResty + Geetest v3 (verify.huodongxing.com/gt3)",
+    "sessionCookies": ["HDXWAFID", "uid", "AccupassWeb", "HDX_REGION"],
+    "burstThreshold": "8 requests per 20s window without pacing",
+    "safePacingIntervalMs": 900,
+    "upstreamBugFixed": "buildEventsUrl() in opencli huodongxing/events.js previously forced d=ts on empty date/dateTo, causing HTTP 500 on Huodongxing's C# backend."
+  },
+  "areas": [
+    {
+      "id": "01_home_portal",
+      "area": "Public Discovery",
+      "title": "Home Portal & Featured Events",
+      "route": "GET /",
+      "cliCommand": "hdx events --city 全部 --limit 20",
+      "opencliCommand": "opencli huodongxing events --city 全部 --limit 20",
+      "screenshot": "evidence/screenshots/01_home_portal.png",
+      "dataSource": "SSR HTML (.search-tab-content-item-mesh, hero banner)",
+      "access": "read"
+    },
+    {
+      "id": "02_events_search",
+      "area": "Public Discovery",
+      "title": "Multi-Dimensional Event Search & Filtering",
+      "route": "GET /events?orderby={o|n|v|r}&city={city}&tag={tag}&eventType={1|2}&qs={keyword}&page={n}",
+      "cliCommand": "hdx events --keyword AI --city 深圳 --orderby o --limit 20",
+      "opencliCommand": "opencli huodongxing events --qs AI --city 深圳 --limit 20",
+      "screenshot": "evidence/screenshots/02_events_search.png",
+      "dataSource": "SSR HTML (.search-tab-content-item-mesh)",
+      "access": "read"
+    },
+    {
+      "id": "03_event_detail",
+      "area": "Public Discovery & Registration",
+      "title": "Event Detail, Ticket Tiers & Registration Form Schema",
+      "route": "GET /event/{eventId}",
+      "cliCommand": "hdx detail 2871552596500",
+      "opencliCommand": "opencli huodongxing detail --id 2871552596500",
+      "screenshot": "evidence/screenshots/03_event_detail.png",
+      "dataSource": "Inline SSR JSON (var ativityJson, var eventTicketsJson, var formItemsJson, var regWebTokenValue)",
+      "access": "read"
+    },
+    {
+      "id": "04_organizers_directory",
+      "area": "Public Discovery",
+      "title": "Featured & Active Organizers Directory (主办方)",
+      "route": "GET /zhubanfang?tag={tag}",
+      "cliCommand": "hdx organizers --limit 20",
+      "opencliCommand": "opencli huodongxing organizers --limit 20",
+      "screenshot": "evidence/screenshots/04_organizers_directory.png",
+      "dataSource": "SSR HTML (ul.organizer-well-list > li)",
+      "access": "read"
+    },
+    {
+      "id": "05_popularity_ranklist",
+      "area": "Public Discovery",
+      "title": "Popularity & Heat Ranklist (优选榜单)",
+      "route": "GET /ranklist",
+      "cliCommand": "hdx ranklist --limit 20",
+      "opencliCommand": "opencli huodongxing ranklist --limit 20",
+      "screenshot": "evidence/screenshots/05_popularity_ranklist.png",
+      "dataSource": "SSR HTML (.popularity-son-item)",
+      "access": "read"
+    },
+    {
+      "id": "06_special_topics",
+      "area": "Public Discovery",
+      "title": "Curated Special Topics (精选专题)",
+      "route": "GET /topic",
+      "cliCommand": "hdx topics --limit 20",
+      "opencliCommand": "opencli huodongxing topics --limit 20",
+      "screenshot": "evidence/screenshots/06_special_topics.png",
+      "dataSource": "SSR HTML (ul.topic-list > li)",
+      "access": "read"
+    },
+    {
+      "id": "07_user_index_timeline",
+      "area": "Authenticated Attendee Center",
+      "title": "Personal Center & Activity Timeline (我的活动行)",
+      "route": "GET /user/index & AJAX GET /user/followandregevents?page={n}&pagesize={size}",
+      "cliCommand": "hdx timeline --page 1 --limit 20",
+      "opencliCommand": "opencli huodongxing timeline --page 1 --limit 20",
+      "screenshot": "evidence/screenshots/07_user_index_timeline.png",
+      "dataSource": "Inline SSR JSON (var mUserState) + Timeline HTML (.user-event-timeline > li)",
+      "access": "read"
+    },
+    {
+      "id": "08_user_tickets_regevents",
+      "area": "Authenticated Attendee Center",
+      "title": "My Tickets, Electronic Passes & Order Details (票券管理)",
+      "route": "GET /user/regevents & GET /user/tikcets?tids={tid}",
+      "cliCommand": "hdx tickets --status valid && hdx ticket-detail <tid> && hdx export-ics",
+      "opencliCommand": "opencli huodongxing tickets --status valid",
+      "screenshot": "evidence/screenshots/08_user_tickets_regevents.png",
+      "dataSource": "SSR HTML (#user-ticket-success|undone|abort|refund + textarea#ticket_print_span_*)",
+      "access": "read"
+    },
+    {
+      "id": "09_user_follows_favorites",
+      "area": "Authenticated Attendee Center",
+      "title": "Saved Events & Followed Organizers (我的收藏与关注)",
+      "route": "GET /user/userfollows",
+      "cliCommand": "hdx favorites && hdx following",
+      "opencliCommand": "opencli huodongxing favorites && opencli huodongxing following",
+      "screenshot": "evidence/screenshots/09_user_follows_favorites.png",
+      "dataSource": "SSR HTML (#user-favorite-event, #user-favorite-org, #user-favorite-person)",
+      "access": "read"
+    },
+    {
+      "id": "10_account_profile",
+      "area": "Authenticated Account Management",
+      "title": "Account Profile & Reversible Bio Configuration (个人资料设置)",
+      "route": "GET /account/profile & POST /profile",
+      "cliCommand": "hdx profile && hdx profile-set --brief \"...\" --dry-run",
+      "opencliCommand": "opencli huodongxing profile && opencli huodongxing profile-set --brief \"...\" --dry-run",
+      "screenshot": "evidence/screenshots/10_account_profile.png",
+      "dataSource": "Form #edit_profile_form + Inline mUserState",
+      "access": "read/write"
+    },
+    {
+      "id": "11_console_home",
+      "area": "Authenticated Organizer Console",
+      "title": "Organizer Console Dashboard & Compliance Readiness (主办方管理中心 - 首页)",
+      "route": "GET /console/home",
+      "cliCommand": "hdx console-home",
+      "opencliCommand": "opencli huodongxing console-home",
+      "screenshot": "evidence/screenshots/11_console_home.png",
+      "dataSource": "Inline SSR JSON (var currentUser, var mUserState, Vue3 #org-home)",
+      "access": "read"
+    },
+    {
+      "id": "12_console_eventadmin",
+      "area": "Authenticated Organizer Console",
+      "title": "Organizer Event Administration & Status Ledger (主办方活动管理)",
+      "route": "GET /console/eventadmin & POST /console/userpubevents",
+      "cliCommand": "hdx console-events --status all",
+      "opencliCommand": "opencli huodongxing console-events --status all",
+      "screenshot": "evidence/screenshots/12_console_eventadmin.png",
+      "dataSource": "Inline SSR JSON (var currenUser, statusList) + AJAX POST /console/userpubevents",
+      "access": "read"
+    }
+  ]
+}

@@ -1,0 +1,112 @@
+{
+  "ok": true,
+  "executedAt": "2026-10-14T15:11:35.085Z",
+  "totalSteps": 14,
+  "passedSteps": 14,
+  "failedSteps": 0,
+  "steps": [
+    {
+      "name": "status_probe",
+      "ok": true,
+      "activeEngine": "opencli",
+      "authenticated": true
+    },
+    {
+      "name": "public_events_search",
+      "ok": true,
+      "engine": "opencli",
+      "count": 5,
+      "sampleEventId": "3880807963600"
+    },
+    {
+      "name": "event_detail_extraction",
+      "ok": true,
+      "engine": "opencli",
+      "eventId": "2871552596500",
+      "ticketsCount": 1,
+      "formItemsCount": 4,
+      "registrationTokenPresent": true
+    },
+    {
+      "name": "organizers_directory",
+      "ok": true,
+      "engine": "opencli",
+      "count": 5
+    },
+    {
+      "name": "popularity_ranklist",
+      "ok": true,
+      "engine": "opencli",
+      "count": 5,
+      "topEventId": "4875910271400"
+    },
+    {
+      "name": "special_topics",
+      "ok": true,
+      "engine": "opencli",
+      "count": 5
+    },
+    {
+      "name": "user_timeline",
+      "ok": true,
+      "engine": "opencli",
+      "count": 0
+    },
+    {
+      "name": "user_tickets_and_ics_export",
+      "ok": true,
+      "engine": "opencli",
+      "counts": {
+        "valid": 0,
+        "undone": 0,
+        "cancelled": 0,
+        "refund": 0
+      },
+      "exportedCount": 0,
+      "validIcsHeader": true
+    },
+    {
+      "name": "ticket_detail",
+      "ok": true,
+      "skipped": "no_tickets_in_account"
+    },
+    {
+      "name": "user_favorites_and_following",
+      "ok": true,
+      "engine": "opencli",
+      "favoritesCount": 4,
+      "followingCount": 20
+    },
+    {
+      "name": "account_profile_reversible_mutation",
+      "ok": true,
+      "engine": "opencli",
+      "dryRunVerified": true,
+      "writeVerified": true,
+      "revertVerified": true,
+      "restoredExactOriginal": true
+    },
+    {
+      "name": "organizer_console_home_and_events",
+      "ok": true,
+      "engine": "opencli",
+      "isAuthenticated": true,
+      "statusTabsCount": 8,
+      "eventsCount": 0
+    },
+    {
+      "name": "registration_dry_run_and_security_guard",
+      "ok": true,
+      "eventId": "2871552596500",
+      "registrationTokenPresent": true,
+      "requiredFormItemsCount": 4,
+      "cashierBlocked": true
+    },
+    {
+      "name": "diagnostic_reconciler",
+      "ok": true,
+      "dtsQueryRegressionOk": true,
+      "upstreamOpencliFixStatus": "repaired"
+    }
+  ]
+}
