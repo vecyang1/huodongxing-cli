@@ -143,10 +143,288 @@ export function parseYmd(value) {
   return dateOrdinal(year, month, day);
 }
 
+export const CITY_ALIAS_MAP = {
+  foshan: '佛山',
+  fs: '佛山',
+  '佛山市': '佛山',
+  '佛山': '佛山',
+  guangzhou: '广州',
+  gz: '广州',
+  canton: '广州',
+  '广州市': '广州',
+  '广州': '广州',
+  shenzhen: '深圳',
+  sz: '深圳',
+  '深圳市': '深圳',
+  '深圳': '深圳',
+  dongguan: '东莞',
+  dg: '东莞',
+  '东莞市': '东莞',
+  '东莞': '东莞',
+  zhuhai: '珠海',
+  zh: '珠海',
+  '珠海市': '珠海',
+  '珠海': '珠海',
+  zhongshan: '中山',
+  zs: '中山',
+  '中山市': '中山',
+  '中山': '中山',
+  huizhou: '惠州',
+  '惠州市': '惠州',
+  '惠州': '惠州',
+  jiangmen: '江门',
+  '江门市': '江门',
+  '江门': '江门',
+  zhaoqing: '肇庆',
+  '肇庆市': '肇庆',
+  '肇庆': '肇庆',
+  hongkong: '香港',
+  'hong kong': '香港',
+  hk: '香港',
+  '中国香港': '香港',
+  '香港': '香港',
+  macau: '澳门',
+  macao: '澳门',
+  mo: '澳门',
+  '中国澳门': '澳门',
+  '澳门': '澳门',
+  shanghai: '上海',
+  sh: '上海',
+  '上海市': '上海',
+  '上海': '上海',
+  beijing: '北京',
+  bj: '北京',
+  peking: '北京',
+  '北京市': '北京',
+  '北京': '北京',
+  hangzhou: '杭州',
+  hz: '杭州',
+  '杭州市': '杭州',
+  '杭州': '杭州',
+  suzhou: '苏州',
+  szu: '苏州',
+  '苏州市': '苏州',
+  '苏州': '苏州',
+  nanjing: '南京',
+  nj: '南京',
+  '南京市': '南京',
+  '南京': '南京',
+  chengdu: '成都',
+  cd: '成都',
+  '成都市': '成都',
+  '成都': '成都',
+  chongqing: '重庆',
+  cq: '重庆',
+  '重庆市': '重庆',
+  '重庆': '重庆',
+  wuhan: '武汉',
+  wh: '武汉',
+  '武汉市': '武汉',
+  '武汉': '武汉',
+  xian: '西安',
+  "xi'an": '西安',
+  xa: '西安',
+  '西安市': '西安',
+  '西安': '西安',
+  changsha: '长沙',
+  cs: '长沙',
+  '长沙市': '长沙',
+  '长沙': '长沙',
+  xiamen: '厦门',
+  xm: '厦门',
+  '厦门市': '厦门',
+  '厦门': '厦门',
+  tianjin: '天津',
+  tj: '天津',
+  '天津市': '天津',
+  '天津': '天津',
+  all: '全部',
+  any: '全部',
+  '*': '全部',
+  '全国': '全部',
+  '全部': '全部',
+};
+
+export const REGION_PRESETS = {
+  gba: {
+    id: 'gba',
+    label: '广佛深 / 粤港澳大湾区核心 (Foshan · Guangzhou · Shenzhen)',
+    cities: ['佛山', '广州', '深圳'],
+    aliases: [
+      'gba',
+      'prd',
+      'bay-area',
+      'greater-bay-area',
+      'guangfoshen',
+      'fgs',
+      '广佛深',
+      '珠三角',
+      '大湾区',
+      '粤港澳',
+      '粤港澳大湾区',
+      '华南',
+    ],
+  },
+  'gba-full': {
+    id: 'gba-full',
+    label: '粤港澳大湾区全域 (Foshan · Guangzhou · Shenzhen · Dongguan · Zhuhai · HK)',
+    cities: ['佛山', '广州', '深圳', '东莞', '珠海', '香港'],
+    aliases: ['gba-full', 'gba-all', '大湾区全域'],
+  },
+  yrd: {
+    id: 'yrd',
+    label: '长三角 / 江浙沪 (Shanghai · Hangzhou · Suzhou)',
+    cities: ['上海', '杭州', '苏州'],
+    aliases: ['yrd', 'yangtze', '长三角', '江浙沪', '华东'],
+  },
+  jjj: {
+    id: 'jjj',
+    label: '京津冀 (Beijing · Tianjin)',
+    cities: ['北京', '天津'],
+    aliases: ['jjj', 'north', '京津冀', '华北'],
+  },
+  sw: {
+    id: 'sw',
+    label: '成渝双城 (Chengdu · Chongqing)',
+    cities: ['成都', '重庆'],
+    aliases: ['sw', 'southwest', '成渝', '川渝', '西南'],
+  },
+};
+
+export const DEFAULT_RECOMMEND_KEYWORDS = [
+  'AI',
+  'Agent',
+  '智能体',
+  '出海',
+  '跨境',
+  '亚马逊',
+  'TikTok',
+  'Wayfair',
+  'DTC',
+  '独立站',
+  '饰品',
+  '首饰',
+  '时尚',
+  '电商',
+  '科技',
+  '机器人',
+  '创业',
+  '峰会',
+  '沙龙',
+];
+
+/**
+ * Normalizes a city name (English, Pinyin, abbreviation, or Chinese) to Huodongxing's canonical city parameter.
+ */
+export function normalizeCityName(input) {
+  const raw = cleanText(input);
+  if (!raw) return '全部';
+  const lower = raw.toLowerCase();
+  if (CITY_ALIAS_MAP[lower]) return CITY_ALIAS_MAP[lower];
+  if (CITY_ALIAS_MAP[raw]) return CITY_ALIAS_MAP[raw];
+  if (raw.length >= 3 && raw.endsWith('市')) {
+    return raw.slice(0, -1);
+  }
+  return raw;
+}
+
+function findRegionPreset(token) {
+  const clean = cleanText(token).toLowerCase();
+  if (!clean) return null;
+  for (const preset of Object.values(REGION_PRESETS)) {
+    if (preset.id === clean || preset.aliases.some((a) => a.toLowerCase() === clean)) {
+      return preset;
+    }
+  }
+  return null;
+}
+
+/**
+ * Resolves `--region`, `--cities`, or `--city` into a canonical deduplicated city list and metadata.
+ */
+export function resolveRegionOrCities(options = {}, fallbackCities = ['佛山', '广州', '深圳']) {
+  const rawRegion = options.region;
+  const rawCities = options.cities ?? options.city;
+
+  if (rawRegion && typeof rawRegion === 'string' && cleanText(rawRegion)) {
+    const preset = findRegionPreset(rawRegion);
+    if (preset) {
+      return {
+        regionId: preset.id,
+        regionLabel: preset.label,
+        cities: [...preset.cities],
+        source: 'region_preset',
+      };
+    }
+    const tokens = String(rawRegion)
+      .split(/[,，、;/|\s]+/)
+      .map((t) => cleanText(t))
+      .filter(Boolean);
+    const expanded = [];
+    for (const tok of tokens) {
+      const p = findRegionPreset(tok);
+      if (p) expanded.push(...p.cities);
+      else expanded.push(normalizeCityName(tok));
+    }
+    const deduped = Array.from(new Set(expanded.filter(Boolean)));
+    if (deduped.length > 0) {
+      return {
+        regionId: 'custom',
+        regionLabel: `自定义区域 (${deduped.join(' · ')})`,
+        cities: deduped,
+        source: 'cli_region_list',
+      };
+    }
+  }
+
+  if (rawCities !== undefined && rawCities !== null && rawCities !== '') {
+    const tokens = Array.isArray(rawCities)
+      ? rawCities.flatMap((c) => String(c).split(/[,，、;/|\s]+/))
+      : String(rawCities).split(/[,，、;/|\s]+/);
+    const expanded = [];
+    for (const tok of tokens.map((t) => cleanText(t)).filter(Boolean)) {
+      const p = findRegionPreset(tok);
+      if (p) expanded.push(...p.cities);
+      else expanded.push(normalizeCityName(tok));
+    }
+    const deduped = Array.from(new Set(expanded.filter(Boolean)));
+    if (deduped.length > 0) {
+      return {
+        regionId: deduped.join(',') === '佛山,广州,深圳' ? 'gba' : 'custom_cities',
+        regionLabel:
+          deduped.join(',') === '佛山,广州,深圳'
+            ? REGION_PRESETS.gba.label
+            : `指定城市群 (${deduped.join(' · ')})`,
+        cities: deduped,
+        source: 'cli_cities',
+      };
+    }
+  }
+
+  const fbTokens = Array.isArray(fallbackCities)
+    ? fallbackCities
+    : String(fallbackCities || '佛山,广州,深圳').split(/[,，、;/|\s]+/);
+  const normalizedFallback = Array.from(
+    new Set(fbTokens.map((c) => normalizeCityName(c)).filter(Boolean))
+  );
+  const finalCities = normalizedFallback.length > 0 ? normalizedFallback : ['佛山', '广州', '深圳'];
+
+  return {
+    regionId: finalCities.join(',') === '佛山,广州,深圳' ? 'gba' : 'configured_default',
+    regionLabel:
+      finalCities.join(',') === '佛山,广州,深圳'
+        ? REGION_PRESETS.gba.label
+        : `默认区域 (${finalCities.join(' · ')})`,
+    cities: finalCities,
+    source: options.configSource || 'operator_default',
+  };
+}
+
 /**
  * Builds the canonical Huodongxing `/events` search URL.
  * Fixes the upstream OpenCLI bug where `d=ts` was passed unconditionally on empty dates,
  * causing Huodongxing's backend to return HTTP 500.
+ * Normalizes bilingual city names (e.g. `foshan` -> `佛山`, `guangzhou` -> `广州`, `shenzhen` -> `深圳`).
  */
 export function buildEventsUrl(args = {}) {
   const date = cleanText(args.date || '');
@@ -171,7 +449,7 @@ export function buildEventsUrl(args = {}) {
     params.set('d', cleanText(args.d));
   }
   if (cleanText(args.tag)) params.set('tag', cleanText(args.tag));
-  params.set('city', cleanText(args.city) || '全部');
+  params.set('city', normalizeCityName(args.city));
 
   const eventType = cleanText(args.eventType);
   if (eventType) {
@@ -199,7 +477,7 @@ function parseMonthDayToken(token, year) {
   };
 }
 
-function parseEventTimeRange(timeText, options = {}) {
+export function parseEventTimeRange(timeText, options = {}) {
   const text = cleanText(timeText);
   if (!text) return null;
   const filterStart = parseYmd(options.date);
@@ -209,9 +487,9 @@ function parseEventTimeRange(timeText, options = {}) {
     referenceDate.getMonth() + 1,
     referenceDate.getDate(),
   );
-  if (/今天/.test(text)) return { start: referenceOrdinal, end: referenceOrdinal };
-  if (/明天/.test(text)) return { start: referenceOrdinal + 1, end: referenceOrdinal + 1 };
-  if (/后天/.test(text)) return { start: referenceOrdinal + 2, end: referenceOrdinal + 2 };
+  if (/今天/.test(text)) return { start: referenceOrdinal, end: referenceOrdinal, referenceOrdinal };
+  if (/明天/.test(text)) return { start: referenceOrdinal + 1, end: referenceOrdinal + 1, referenceOrdinal };
+  if (/后天/.test(text)) return { start: referenceOrdinal + 2, end: referenceOrdinal + 2, referenceOrdinal };
 
   const baseYear = options.year ?? (
     cleanText(options.date).match(/^(\d{4})-/)?.[1]
@@ -220,12 +498,19 @@ function parseEventTimeRange(timeText, options = {}) {
   );
   const tokens = Array.from(text.matchAll(/(\d{1,2}[/-]\d{1,2})/g)).map((m) => m[1]);
   if (tokens.length === 0) return null;
-  const start = parseMonthDayToken(tokens[0], baseYear);
+  let start = parseMonthDayToken(tokens[0], baseYear);
   if (!start) return null;
-  if (tokens.length === 1) return { start: start.ordinal, end: start.ordinal };
-  const endYear = parseMonthDayToken(tokens[1], baseYear)?.month < start.month ? baseYear + 1 : baseYear;
+  if (referenceDate.getMonth() + 1 >= 10 && start.month <= 2 && !options.year) {
+    start = parseMonthDayToken(tokens[0], baseYear + 1) || start;
+  }
+  if (tokens.length === 1) return { start: start.ordinal, end: start.ordinal, referenceOrdinal };
+  const startYear = Math.floor((start.ordinal * 86400000) / (365.2425 * 86400000)) + 1970;
+  const effectiveStartYear = referenceDate.getMonth() + 1 >= 10 && start.month <= 2 ? baseYear + 1 : baseYear;
+  const endYear = parseMonthDayToken(tokens[1], effectiveStartYear)?.month < start.month
+    ? effectiveStartYear + 1
+    : effectiveStartYear;
   const end = parseMonthDayToken(tokens[1], endYear);
-  if (!end) return { start: start.ordinal, end: start.ordinal };
+  if (!end) return { start: start.ordinal, end: start.ordinal, referenceOrdinal };
 
   if (filterStart != null && end.ordinal < filterStart && start.month >= 10) {
     const nextStart = parseMonthDayToken(tokens[0], baseYear + 1);
@@ -233,21 +518,38 @@ function parseEventTimeRange(timeText, options = {}) {
       ? baseYear + 2
       : baseYear + 1;
     const nextEnd = parseMonthDayToken(tokens[1], nextEndYear);
-    if (nextStart && nextEnd) return { start: nextStart.ordinal, end: nextEnd.ordinal };
+    if (nextStart && nextEnd) return { start: nextStart.ordinal, end: nextEnd.ordinal, referenceOrdinal };
   }
-  return { start: start.ordinal, end: end.ordinal };
+  return { start: start.ordinal, end: end.ordinal, referenceOrdinal };
 }
 
 export function filterRowsByDateRange(rows, options = {}) {
   const filterStart = parseYmd(options.date);
   const filterEnd = parseYmd(options.dateTo) ?? filterStart;
-  if (filterStart == null && filterEnd == null) return rows;
+  const upcomingOnly = Boolean(options.upcomingOnly);
+  if (filterStart == null && filterEnd == null && !upcomingOnly) {
+    return rows.map((row, idx) => ({ ...row, rank: idx + 1 }));
+  }
+
+  const referenceDate = options.referenceDate instanceof Date ? options.referenceDate : new Date();
+  const todayOrdinal = dateOrdinal(
+    referenceDate.getFullYear(),
+    referenceDate.getMonth() + 1,
+    referenceDate.getDate(),
+  );
+
   const start = filterStart ?? filterEnd;
   const end = filterEnd ?? filterStart;
   const filtered = rows.filter((row) => {
     const range = parseEventTimeRange(row.time, options);
-    if (!range) return true;
-    return range.start <= end && range.end >= start;
+    if (!range) return !upcomingOnly;
+    if (upcomingOnly && range.end < todayOrdinal) {
+      return false;
+    }
+    if (start != null && end != null) {
+      return range.start <= end && range.end >= start;
+    }
+    return true;
   });
   return filtered.map((row, idx) => ({ ...row, rank: idx + 1 }));
 }
@@ -285,6 +587,8 @@ export function detectWafOrErrorHtml(html) {
 
 /**
  * Parses `/events` or `/` HTML into structured event rows.
+ * Scopes `.item-dress` strictly so static platform promo banners (which have empty `.item-dress`)
+ * are filtered out instead of leaking across `</div>` into `.user-name`.
  */
 export function parseEventsHtml(html, options = {}) {
   const limit = Math.min(Math.max(Number(options.limit || 20), 1), 100);
@@ -295,7 +599,6 @@ export function parseEventsHtml(html, options = {}) {
   const seen = new Set();
 
   for (const rawBlock of parts) {
-    if (rows.length >= limit) break;
     const block = rawBlock.split(/<\/div>\s*<\/div>\s*<\/div>/i)[0] || rawBlock.slice(0, 4000);
     const idMatch = block.match(/href=["'][^"']*\/event\/(\d+)[^"']*["']/i);
     const id = idMatch ? idMatch[1] : '';
@@ -306,11 +609,20 @@ export function parseEventsHtml(html, options = {}) {
     const title = cleanText(titleLinkMatch?.[1]) || cleanText(imgAltMatch?.[1]) || '';
     if (!title) continue;
 
-    const timeMatch = block.match(/<div[^>]*class=["'][^"']*item-dress[^"']*["'][^>]*>[\s\S]*?<p[^>]*>([\s\S]*?)<\/p>/i);
+    const dressBlockMatch = block.match(/<div[^>]*class=["'][^"']*item-dress\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
+    const dressBlock = dressBlockMatch ? dressBlockMatch[1] : '';
+
+    const timeMatch = dressBlock.match(/<p(?![^>]*class=["'][^"']*item-dress-pp)[^>]*>([\s\S]*?)<\/p>/i);
     const time = cleanText(timeMatch?.[1] || '');
 
-    const locMatch = block.match(/class=["'][^"']*item-dress-pp[^"']*["'][^>]*>([\s\S]*?)<\//i);
+    const locMatch = dressBlock.match(/class=["'][^"']*item-dress-pp[^"']*["'][^>]*>([\s\S]*?)<\//i)
+      || block.match(/class=["'][^"']*item-dress-pp[^"']*["'][^>]*>([\s\S]*?)<\//i);
     const location = cleanText(locMatch?.[1] || '');
+
+    // Skip static platform promotional banners that have neither event time nor location
+    if (!time && !location && !options.includePromos) {
+      continue;
+    }
 
     const orgMatch = block.match(/class=["'][^"']*user-name[^"']*["'][^>]*>([\s\S]*?)<\//i)
       || block.match(/item-bottom-left[\s\S]*?<img[^>]*title=["']([^"']+)["']/i);
@@ -336,7 +648,150 @@ export function parseEventsHtml(html, options = {}) {
     });
   }
 
-  return filterRowsByDateRange(rows, options);
+  return filterRowsByDateRange(rows, options).slice(0, limit).map((row, idx) => ({
+    ...row,
+    rank: idx + 1,
+  }));
+}
+
+/**
+ * Scores, deduplicates, and ranks multi-city events for regional recommendation (`hdx recommend`).
+ */
+export function scoreAndRankRegionalEvents(rawItemsByCity = {}, options = {}) {
+  const cities = Array.isArray(options.cities) && options.cities.length > 0
+    ? options.cities
+    : ['佛山', '广州', '深圳'];
+  const hasExplicitKeywords = Array.isArray(options.keywords)
+    ? options.keywords.length > 0
+    : Boolean(cleanText(options.keywords || ''));
+  const rawKeywords = hasExplicitKeywords ? options.keywords : DEFAULT_RECOMMEND_KEYWORDS;
+  const keywords = (Array.isArray(rawKeywords)
+    ? rawKeywords
+    : String(rawKeywords).split(/[,，、;/|\s]+/)
+  )
+    .map((k) => cleanText(k))
+    .filter(Boolean);
+
+  const upcomingOnly = options.upcomingOnly !== false;
+  const limit = Math.min(Math.max(Number(options.limit || 20), 1), 100);
+  const perCityLimit = Math.min(Math.max(Number(options.perCityLimit || 8), 1), 50);
+
+  const referenceDate = options.referenceDate instanceof Date ? options.referenceDate : new Date();
+  const todayOrdinal = dateOrdinal(
+    referenceDate.getFullYear(),
+    referenceDate.getMonth() + 1,
+    referenceDate.getDate(),
+  );
+
+  let totalFetched = 0;
+  let pastFilteredOut = 0;
+  let duplicatesRemoved = 0;
+
+  const seenIds = new Set();
+  const scoredAll = [];
+  const byCity = {};
+  const byCityCounts = {};
+
+  for (let cityIdx = 0; cityIdx < cities.length; cityIdx++) {
+    const cityName = cities[cityIdx];
+    const cityItems = rawItemsByCity[cityName] || [];
+    totalFetched += cityItems.length;
+    byCity[cityName] = [];
+
+    for (const item of cityItems) {
+      if (!item || !item.id) continue;
+      const range = parseEventTimeRange(item.time, { referenceDate });
+      if (upcomingOnly && range && range.end < todayOrdinal) {
+        pastFilteredOut += 1;
+        continue;
+      }
+
+      if (seenIds.has(item.id)) {
+        duplicatesRemoved += 1;
+        continue;
+      }
+      seenIds.add(item.id);
+
+      const daysFromNow = range ? Math.max(0, range.start - todayOrdinal) : null;
+      const hay = `${item.title || ''} ${item.organizer || ''} ${item.location || ''}`;
+      const hayLower = hay.toLowerCase();
+      const matchedTags = [];
+      for (const kw of keywords) {
+        if (/^[a-z0-9]+$/i.test(kw)) {
+          const esc = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const re = new RegExp(`(^|[^a-z0-9])${esc}([^a-z0-9]|$)`, 'i');
+          if (re.test(hay)) matchedTags.push(kw);
+        } else if (hayLower.includes(kw.toLowerCase())) {
+          matchedTags.push(kw);
+        }
+      }
+
+      // Deterministic scoring model:
+      // 1. Regional city priority base score (preserves user's preferred city order)
+      const cityBaseScore = Math.max(20, 30 - cityIdx * 2);
+      // 2. Keyword/theme match boost (+15 per matched tag, capped at +45)
+      const keywordScore = Math.min(45, matchedTags.length * 15);
+      // 3. Proximity boost (+12 if within 7 days, +8 if within 21 days, +4 if within 45 days)
+      const proximityScore =
+        daysFromNow == null
+          ? 0
+          : daysFromNow <= 7
+            ? 12
+            : daysFromNow <= 21
+              ? 8
+              : daysFromNow <= 45
+                ? 4
+                : 1;
+      // 4. Offline local presence boost (+6 for offline in-city vs online)
+      const offlineScore = item.eventType === 'offline' ? 6 : 0;
+      // 5. Featured boost
+      const featuredScore = item.isFeatured ? 5 : 0;
+
+      const recommendScore = cityBaseScore + keywordScore + proximityScore + offlineScore + featuredScore;
+
+      const enriched = {
+        ...item,
+        matchedCity: cityName,
+        daysFromNow,
+        matchedTags,
+        recommendScore,
+      };
+      scoredAll.push(enriched);
+      byCity[cityName].push(enriched);
+    }
+
+    byCity[cityName].sort((a, b) => {
+      if (b.recommendScore !== a.recommendScore) return b.recommendScore - a.recommendScore;
+      return (a.daysFromNow ?? 999) - (b.daysFromNow ?? 999);
+    });
+    byCityCounts[cityName] = byCity[cityName].length;
+    byCity[cityName] = byCity[cityName].slice(0, perCityLimit).map((row, idx) => ({
+      ...row,
+      cityRank: idx + 1,
+    }));
+  }
+
+  scoredAll.sort((a, b) => {
+    if (b.recommendScore !== a.recommendScore) return b.recommendScore - a.recommendScore;
+    return (a.daysFromNow ?? 999) - (b.daysFromNow ?? 999);
+  });
+
+  const rankedItems = scoredAll.slice(0, limit).map((row, idx) => ({
+    ...row,
+    rank: idx + 1,
+  }));
+
+  return {
+    stats: {
+      totalFetched,
+      pastFilteredOut,
+      duplicatesRemoved,
+      recommendedCount: rankedItems.length,
+      byCityCounts,
+    },
+    byCity,
+    items: rankedItems,
+  };
 }
 
 /**

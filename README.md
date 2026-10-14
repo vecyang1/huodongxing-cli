@@ -47,8 +47,12 @@ hdx diagnose --offline
 ## 🛠️ CLI Command Reference
 
 ```bash
-# 1. Public Discovery
-hdx events --keyword "AI" --city "深圳" --limit 10 -f table
+# 1. Public Discovery & Regional Recommendations (Defaults to 佛山·广州·深圳 / --region gba)
+hdx recommend --limit 15 -f table
+hdx recommend --region gba --keywords "AI,出海,跨境,饰品" -f table
+hdx recommend --cities "foshan,guangzhou,shenzhen" --limit 20
+hdx events --cities "佛山,广州,深圳" --upcoming-only --limit 15 -f table
+hdx events --keyword "AI" --city "shenzhen" --limit 10 -f table
 hdx events --keyword "具身智能" --date 2026-10-01 --date-to 2026-10-31
 hdx detail 2871552596500
 hdx organizers --limit 10 -f table
@@ -75,8 +79,10 @@ hdx console-events --status all -f table
 # 4. Diagnostic & Observability (能读 / 能试 / 能调)
 hdx diagnose
 hdx diagnose --read-config
+hdx diagnose --sample "foshan,guangzhou,shenzhen"
 hdx diagnose --sample "https://www.huodongxing.com/event/2871552596500"
 hdx diagnose --sample "https://www.huodongxing.com/payment/cashier" --method POST
+hdx diagnose --set-config --key defaultCities --value "佛山,广州,深圳"
 hdx diagnose --set-config --key minIntervalMs --value 1000
 hdx diagnose --reset-config
 ```
@@ -99,6 +105,13 @@ const client = new HuodongxingClient({
   minIntervalMs: 900,
 });
 
+// Smart regional recommendations across Foshan, Guangzhou, and Shenzhen (GBA default)
+const rec = await client.recommendEvents({
+  region: 'gba', // or cities: ['foshan', 'guangzhou', 'shenzhen']
+  limit: 15,
+});
+console.log(rec.byCity['佛山'], rec.byCity['广州'], rec.byCity['深圳']);
+
 // Search public events
 const search = await client.searchEvents({ keyword: '机器人', city: '深圳', limit: 5 });
 console.log(search.items);
@@ -118,10 +131,11 @@ console.log(classifySample('/payment/cashier', { method: 'POST' }));
 
 ## 🔌 OpenCLI Adapter Suite (`opencli huodongxing <cmd>`)
 
-The `opencli-adapter/` directory provides 12 SSOT-backed OpenCLI commands that delegate directly to `src/index.js`:
+The `opencli-adapter/` directory provides 14 SSOT-backed OpenCLI commands that delegate directly to `src/index.js`:
 
 | Command | Access | Strategy | Description |
 | :--- | :--- | :--- | :--- |
+| `opencli huodongxing recommend` | `read` | `PUBLIC` | Smart regional recommendations (`佛山·广州·深圳` default, `--region`, `--cities`) |
 | `opencli huodongxing events` | `read` | `PUBLIC` | Search & filter public events (with `d=ts` date-range fix) |
 | `opencli huodongxing detail <id>` | `read` | `PUBLIC` | Event detail, ticket tiers & registration form schema |
 | `opencli huodongxing organizers` | `read` | `PUBLIC` | Featured event organizers directory |

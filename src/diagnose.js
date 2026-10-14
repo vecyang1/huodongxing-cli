@@ -3,7 +3,12 @@ import os from 'node:os';
 import path from 'node:path';
 import { PACKAGE_NAME, VERSION, LICENSE, DESCRIPTION } from './version.js';
 import { SECURITY_ROUTE_DENYLIST, inspectRouteSafety } from './security-guard.js';
-import { buildEventsUrl } from './parsers.js';
+import {
+  buildEventsUrl,
+  REGION_PRESETS,
+  DEFAULT_RECOMMEND_KEYWORDS,
+  resolveRegionOrCities,
+} from './parsers.js';
 
 export const DEFAULT_BASE_URL = 'https://www.huodongxing.com';
 export const UPSTREAM_OPENCLI_EVENTS_PATH =
@@ -45,6 +50,9 @@ export function resolveRuntimeConfig(cliOverrides = {}) {
     minIntervalMs: 900,
     timeoutMs: 25000,
     defaultEventId: '2871552596500',
+    defaultRegion: 'gba',
+    defaultCities: ['佛山', '广州', '深圳'],
+    defaultKeywords: DEFAULT_RECOMMEND_KEYWORDS,
   };
 
   let fileConfig = {};
@@ -65,6 +73,13 @@ export function resolveRuntimeConfig(cliOverrides = {}) {
   if (process.env.HDX_MIN_INTERVAL_MS) envConfig.minIntervalMs = Number(process.env.HDX_MIN_INTERVAL_MS);
   if (process.env.HDX_TIMEOUT_MS) envConfig.timeoutMs = Number(process.env.HDX_TIMEOUT_MS);
   if (process.env.HDX_DEFAULT_EVENT_ID) envConfig.defaultEventId = process.env.HDX_DEFAULT_EVENT_ID;
+  if (process.env.HDX_DEFAULT_REGION) envConfig.defaultRegion = process.env.HDX_DEFAULT_REGION;
+  if (process.env.HDX_DEFAULT_CITIES) {
+    envConfig.defaultCities = resolveRegionOrCities({ cities: process.env.HDX_DEFAULT_CITIES }).cities;
+  }
+  if (process.env.HDX_DEFAULT_KEYWORDS) {
+    envConfig.defaultKeywords = process.env.HDX_DEFAULT_KEYWORDS.split(/[,，、;/|\s]+/).filter(Boolean);
+  }
 
   const cleanCli = Object.fromEntries(
     Object.entries(cliOverrides).filter(([, v]) => v !== undefined && v !== null && v !== '')
@@ -76,6 +91,13 @@ export function resolveRuntimeConfig(cliOverrides = {}) {
     ...envConfig,
     ...cleanCli,
   };
+
+  if (typeof effective.defaultCities === 'string') {
+    effective.defaultCities = resolveRegionOrCities({ cities: effective.defaultCities }).cities;
+  }
+  if (typeof effective.defaultKeywords === 'string') {
+    effective.defaultKeywords = effective.defaultKeywords.split(/[,，、;/|\s]+/).filter(Boolean);
+  }
 
   const sources = {};
   for (const key of Object.keys(defaults)) {
@@ -94,6 +116,9 @@ export function resolveRuntimeConfig(cliOverrides = {}) {
     configFileLoaded: fileConfigLoaded,
     effective,
     sources,
+    regionPresets: Object.fromEntries(
+      Object.entries(REGION_PRESETS).map(([k, v]) => [k, { label: v.label, cities: v.cities, aliases: v.aliases }])
+    ),
     cookiePresent: Boolean(process.env.HDX_COOKIE || cliOverrides.cookie),
     cookieSource: cliOverrides.cookie
       ? 'cli_override'
@@ -129,6 +154,9 @@ export function updateOperatorConfig(updates = {}, { reset = false } = {}) {
     'minIntervalMs',
     'timeoutMs',
     'defaultEventId',
+    'defaultRegion',
+    'defaultCities',
+    'defaultKeywords',
   ]);
   let existing = {};
   try {
@@ -144,7 +172,13 @@ export function updateOperatorConfig(updates = {}, { reset = false } = {}) {
     if (!allowedKeys.has(k)) {
       throw new Error(`Unsupported config key: ${k}. Allowed keys: ${Array.from(allowedKeys).join(', ')}`);
     }
-    next[k] = v;
+    if (k === 'defaultCities') {
+      next[k] = resolveRegionOrCities({ cities: v }).cities;
+    } else if (k === 'defaultKeywords' && typeof v === 'string') {
+      next[k] = v.split(/[,，、;/|\s]+/).filter(Boolean);
+    } else {
+      next[k] = v;
+    }
   }
 
   fs.mkdirSync(dir, { recursive: true });
@@ -186,7 +220,7 @@ export function checkUpstreamOpencliOwnerFix() {
 
 /**
  * "能试" (Sample Classifier & Rule Explainer):
- * Calls the REAL inspectRouteSafety and route/parser matching logic on a sample URL, route path, or event ID.
+ * Calls the REAL inspectRouteSafety, region/city normalizer, and route/parser matching logic on a sample input.
  */
 export function classifySample(sampleInput, options = {}) {
   const raw = String(sampleInput || '').trim();
@@ -199,6 +233,7 @@ export function classifySample(sampleInput, options = {}) {
   }
 
   const config = resolveRuntimeConfig(options).effective;
+  const regionResolution = resolveRegionOrCities({ cities: raw }, config.defaultCities);
 
   let normalizedUrl = raw;
   if (/^\d{10,16}$/.test(raw)) {
@@ -206,7 +241,11 @@ export function classifySample(sampleInput, options = {}) {
   } else if (raw.startsWith('/')) {
     normalizedUrl = `${config.baseUrl}${raw}`;
   } else if (!/^https?:\/\//i.test(raw)) {
-    normalizedUrl = `${config.baseUrl}/events?keyword=${encodeURIComponent(raw)}`;
+    if (regionResolution.cities.length === 1 && regionResolution.cities[0] !== '全部') {
+      normalizedUrl = buildEventsUrl({ city: regionResolution.cities[0] });
+    } else {
+      normalizedUrl = `${config.baseUrl}/events?keyword=${encodeURIComponent(raw)}`;
+    }
   }
 
   const method = (options.method || 'GET').toUpperCase();
@@ -220,6 +259,7 @@ export function classifySample(sampleInput, options = {}) {
       valid: false,
       input: raw,
       normalizedUrl,
+      regionResolution,
       securityVerdict,
       reason: 'Invalid URL syntax',
     };
@@ -241,9 +281,9 @@ export function classifySample(sampleInput, options = {}) {
       match: (p) => p === '/events',
       area: '02_events_search',
       authRequired: false,
-      parser: 'parseEventsHtml',
-      cliCommand: 'huodongxing events',
-      description: 'Public event search & multi-facet discovery',
+      parser: 'parseEventsHtml / scoreAndRankRegionalEvents',
+      cliCommand: 'huodongxing events | huodongxing recommend',
+      description: 'Public event search, multi-city regional discovery & recommendation',
     },
     {
       id: 'ROUTE_EVENT_DETAIL',
@@ -346,6 +386,7 @@ export function classifySample(sampleInput, options = {}) {
     normalizedUrl,
     pathname,
     query: Object.fromEntries(parsedUrl.searchParams.entries()),
+    regionResolution,
     securityVerdict,
     matchedRoute: matchedRoute
       ? {

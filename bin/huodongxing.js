@@ -43,6 +43,7 @@ function parseArgs(argv) {
         e: 'engine',
         k: 'keyword',
         c: 'city',
+        r: 'region',
         p: 'page',
         l: 'limit',
         o: 'output',
@@ -73,8 +74,9 @@ Usage:
   huodongxing <command> [arguments] [options]
   hdx <command> [arguments] [options]
 
-Commands (Public Discovery):
-  events                  Search & filter public events (supports --keyword, --city, --tag, --orderby, --date, --date-to, --page, --limit)
+Commands (Public Discovery & Regional Recommendation):
+  recommend               Smart regional event recommendations (defaults to 佛山·广州·深圳 / --region gba; supports --region, --cities, --keywords, --limit)
+  events                  Search & filter public events (supports --keyword, --city, --cities, --region, --upcoming-only, --tag, --orderby, --date, --date-to, --page, --limit)
   detail <eventId>        Inspect event detail, inline ticket tiers, and registration form schema
   organizers              List featured event organizers (--tag, --limit)
   ranklist                List popularity & heat index ranklist (--limit)
@@ -98,13 +100,15 @@ Commands (Organizer Console):
 
 Commands (Diagnostic & Observability — 能读 / 能试 / 能调):
   diagnose                Run full E2E diagnostic reconciler (--offline to skip network probes)
-  diagnose --sample <in>  Test sample URL/ID against Security Guard, route matcher, and parser selector (能试)
-  diagnose --read-config  Inspect effective runtime configuration, source priority, and security rules (能读)
+  diagnose --sample <in>  Test sample URL/ID/city/region against Security Guard, region resolver, and route matcher (能试)
+  diagnose --read-config  Inspect effective runtime configuration, region presets, source priority, and security rules (能读)
   diagnose --set-config   Persist operator config override (--key <k> --value <v> or --reset-config) (能调)
 
 Global Options:
   -f, --format <fmt>      Output format: json (default), table, md, csv
   -e, --engine <eng>      Execution engine: auto (default), direct, opencli
+  -r, --region <name>     Region preset or city list (e.g. gba / 广佛深 / yrd / jjj / sw)
+  --cities <list>         Comma-separated cities (e.g. foshan,guangzhou,shenzhen or 佛山,广州,深圳)
   --session <name>        OpenCLI browser session name (default: work)
   --cookie <str>          Explicit Cookie header for Direct HTTP mode (or env HDX_COOKIE)
   -h, --help              Show this help message
@@ -148,11 +152,45 @@ async function main() {
       break;
     }
 
+    case 'recommend':
+    case 'rec': {
+      result = await client.recommendEvents({
+        region: flags.region || positional[1] || '',
+        cities: flags.cities || '',
+        city: flags.city || '',
+        keywords: flags.keywords || flags.keyword || '',
+        queryKeyword: flags['query-keyword'] || '',
+        tag: flags.tag || '',
+        orderby: flags.orderby || 'o',
+        date: flags.date || '',
+        dateTo: flags['date-to'] || flags.dateTo || '',
+        page: Number(flags.page || 1),
+        limit: Number(flags.limit || 20),
+        perCityLimit: Number(flags['per-city-limit'] || 8),
+        upcomingOnly: !flags['include-past'],
+      });
+      preferredColumns = [
+        'rank',
+        'id',
+        'matchedCity',
+        'title',
+        'time',
+        'recommendScore',
+        'matchedTags',
+        'organizer',
+        'url',
+      ];
+      break;
+    }
+
     case 'events':
     case 'search': {
       result = await client.searchEvents({
         keyword: flags.keyword || positional[1] || '',
         city: flags.city || '',
+        cities: flags.cities || '',
+        region: flags.region || '',
+        upcomingOnly: Boolean(flags['upcoming-only']),
         tag: flags.tag || '',
         orderby: flags.orderby || 'o',
         date: flags.date || '',

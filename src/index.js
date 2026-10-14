@@ -30,7 +30,8 @@ import { formatOutput, toCsv, toMarkdownTable, toTerminalTable } from './formatt
  */
 export class HuodongxingClient {
   constructor(options = {}) {
-    const resolved = resolveRuntimeConfig(options).effective;
+    this.configState = resolveRuntimeConfig(options);
+    const resolved = this.configState.effective;
     this.engine = String(options.engine || resolved.engine || 'auto').toLowerCase();
     this.sharedPacer = new RequestPacer(options.minIntervalMs ?? resolved.minIntervalMs ?? 900);
     this.direct = new DirectClient({
@@ -132,7 +133,142 @@ export class HuodongxingClient {
   }
 
   async searchEvents(args = {}) {
+    const hasRegionOrMultiCity =
+      Boolean(args.region) ||
+      Boolean(args.cities) ||
+      (typeof args.city === 'string' && /[,，、;/|\s]/.test(args.city.trim())) ||
+      Boolean(args.city && parsers.REGION_PRESETS[String(args.city).trim().toLowerCase()]);
+
+    if (hasRegionOrMultiCity) {
+      const resolvedRegion = parsers.resolveRegionOrCities(
+        args,
+        this.configState.effective.defaultCities
+      );
+      if (resolvedRegion.cities.length > 1) {
+        const limit = Math.min(Math.max(Number(args.limit || 20), 1), 100);
+        const perCityFetch = Math.max(10, Math.ceil(limit / resolvedRegion.cities.length) + 5);
+        const seen = new Set();
+        const combined = [];
+        let activeEngine = this.engine;
+
+        for (const cityName of resolvedRegion.cities) {
+          const singleRes = await this._dispatch(
+            'searchEvents',
+            [
+              {
+                ...args,
+                city: cityName,
+                cities: undefined,
+                region: undefined,
+                limit: perCityFetch,
+              },
+            ],
+            { requiresAuth: false }
+          );
+          activeEngine = singleRes.engine || activeEngine;
+          for (const item of singleRes.items || []) {
+            if (!item?.id || seen.has(item.id)) continue;
+            seen.add(item.id);
+            combined.push({
+              ...item,
+              matchedCity: cityName,
+            });
+          }
+        }
+
+        const items = combined.slice(0, limit).map((row, idx) => ({
+          ...row,
+          rank: idx + 1,
+        }));
+        return {
+          engine: activeEngine,
+          region: resolvedRegion,
+          count: items.length,
+          items,
+        };
+      }
+      return this._dispatch(
+        'searchEvents',
+        [{ ...args, city: resolvedRegion.cities[0], cities: undefined, region: undefined }],
+        { requiresAuth: false }
+      );
+    }
+
     return this._dispatch('searchEvents', [args], { requiresAuth: false });
+  }
+
+  /**
+   * Region-aware smart recommendation engine (`hdx recommend`).
+   * Queries target regional cities (defaulting to operator config `['佛山', '广州', '深圳']`),
+   * filters out past events and static promos, and scores/ranks events by regional priority,
+   * theme keywords, time proximity, and offline presence.
+   */
+  async recommendEvents(options = {}) {
+    const resolvedRegion = parsers.resolveRegionOrCities(
+      {
+        ...options,
+        configSource: this.configState.sources.defaultCities || 'operator_default',
+      },
+      this.configState.effective.defaultCities
+    );
+    const explicitKw = options.keywords || options.keyword;
+    const hasExplicitKw = Array.isArray(explicitKw)
+      ? explicitKw.length > 0
+      : Boolean(parsers.cleanText(explicitKw || ''));
+    const rawKeywords = hasExplicitKw
+      ? explicitKw
+      : this.configState.effective.defaultKeywords;
+    const keywords = (Array.isArray(rawKeywords)
+      ? rawKeywords
+      : String(rawKeywords).split(/[,，、;/|\s]+/)
+    )
+      .map((k) => parsers.cleanText(k))
+      .filter(Boolean);
+
+    const rawItemsByCity = {};
+    let activeEngine = this.engine;
+    const upcomingOnly = options.upcomingOnly !== false;
+
+    for (const cityName of resolvedRegion.cities) {
+      const res = await this._dispatch(
+        'searchEvents',
+        [
+          {
+            city: cityName,
+            keyword: options.queryKeyword || '',
+            tag: options.tag || '',
+            orderby: options.orderby || 'o',
+            date: options.date || '',
+            dateTo: options.dateTo || '',
+            page: Number(options.page || 1),
+            limit: 30,
+            upcomingOnly,
+          },
+        ],
+        { requiresAuth: false }
+      );
+      activeEngine = res.engine || activeEngine;
+      rawItemsByCity[cityName] = res.items || [];
+    }
+
+    const scored = parsers.scoreAndRankRegionalEvents(rawItemsByCity, {
+      cities: resolvedRegion.cities,
+      keywords,
+      upcomingOnly,
+      limit: Number(options.limit || 20),
+      perCityLimit: Number(options.perCityLimit || 8),
+      referenceDate: options.referenceDate,
+    });
+
+    return {
+      engine: activeEngine,
+      region: resolvedRegion,
+      keywords,
+      count: scored.items.length,
+      stats: scored.stats,
+      byCity: scored.byCity,
+      items: scored.items,
+    };
   }
 
   async getEventDetail(eventId) {

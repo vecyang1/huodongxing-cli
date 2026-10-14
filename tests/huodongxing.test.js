@@ -435,3 +435,102 @@ test('DirectClient reversible updateProfile dryRun and post-write re-read verifi
   assert.equal(executed.verified, true);
   assert.equal(executed.after.brief, 'Updated Bio');
 });
+
+test('Region & multi-city resolution (Foshan · Guangzhou · Shenzhen), promo filtering, and regional recommendation engine', () => {
+  assert.equal(parsers.normalizeCityName('foshan'), '佛山');
+  assert.equal(parsers.normalizeCityName('guangzhou'), '广州');
+  assert.equal(parsers.normalizeCityName('shenzhen'), '深圳');
+  assert.equal(parsers.normalizeCityName('佛山市'), '佛山');
+
+  const gbaPreset = parsers.resolveRegionOrCities({ region: 'gba' });
+  assert.deepEqual(gbaPreset.cities, ['佛山', '广州', '深圳']);
+
+  const csvCities = parsers.resolveRegionOrCities({ cities: 'foshan, guangzhou, shenzhen' });
+  assert.deepEqual(csvCities.cities, ['佛山', '广州', '深圳']);
+
+  const defaultResolved = parsers.resolveRegionOrCities({});
+  assert.deepEqual(defaultResolved.cities, ['佛山', '广州', '深圳']);
+
+  // Verify buildEventsUrl normalizes English city names
+  const fsUrl = parsers.buildEventsUrl({ city: 'foshan' });
+  assert.equal(fsUrl.includes('city=%E4%BD%9B%E5%B1%B1'), true);
+
+  // Verify parseEventsHtml filters out static platform promo banners (empty .item-dress) and past events when upcomingOnly=true
+  const mixedHtml = `
+    <div class="search-tab-content-item-mesh">
+      <a class="item-title" href="/event/9850851898587"><span>展·势 产业引力场</span></a>
+      <div class="item-dress flex"></div>
+      <div class="item-mesh-bottom"><p class="user-name">活动行</p></div>
+    </div>
+    <div class="search-tab-content-item-mesh">
+      <a class="item-title" href="/event/4858461236700">五月旧活动</a>
+      <div class="item-dress flex"><p>05/10 周日 20:00</p><p class="item-dress-pp">广东佛山</p></div>
+      <div class="item-mesh-bottom"><p class="user-name">旧主办方</p></div>
+    </div>
+    <div class="search-tab-content-item-mesh">
+      <a class="item-title" href="/event/2882671341711">TikTok Shop全托管产业带优质好商招商会——佛山顺德站</a>
+      <div class="item-dress flex"><p>10/30 周五 13:30</p><p class="item-dress-pp">广东佛山</p><i class="item-dress-icon"></i></div>
+      <div class="item-mesh-bottom"><p class="user-name">TikTok出海</p></div>
+    </div>
+  `;
+  const refDate = new Date('2026-10-15T00:00:00Z');
+  const parsedUpcoming = parsers.parseEventsHtml(mixedHtml, {
+    upcomingOnly: true,
+    referenceDate: refDate,
+  });
+  assert.equal(parsedUpcoming.length, 1);
+  assert.equal(parsedUpcoming[0].id, '2882671341711');
+
+  // Verify scoreAndRankRegionalEvents across 佛山, 广州, 深圳
+  const scored = parsers.scoreAndRankRegionalEvents(
+    {
+      佛山: [
+        {
+          id: '2882671341711',
+          title: 'TikTok Shop全托管产业带优质好商招商会——佛山顺德站',
+          time: '10/30 周五 13:30',
+          eventType: 'offline',
+          city: '广东佛山',
+          location: '广东佛山',
+          organizer: 'TikTok官方',
+          isFeatured: true,
+          url: 'https://www.huodongxing.com/event/2882671341711',
+        },
+      ],
+      广州: [
+        {
+          id: '6859860972400',
+          title: '2026广州国际时尚饰品及首饰展',
+          time: '10/31 周六 ~ 11/01 周日',
+          eventType: 'offline',
+          city: '广东广州',
+          location: '广东广州',
+          organizer: '探世展览',
+          isFeatured: false,
+          url: 'https://www.huodongxing.com/event/6859860972400',
+        },
+      ],
+      深圳: [
+        {
+          id: '2869822649411',
+          title: '第二届中国 GEO&AI 营销智能体峰会',
+          time: '10/16 周五 09:00',
+          eventType: 'offline',
+          city: '广东深圳',
+          location: '广东深圳',
+          organizer: 'AI出海观察',
+          isFeatured: true,
+          url: 'https://www.huodongxing.com/event/2869822649411',
+        },
+      ],
+    },
+    { referenceDate: refDate }
+  );
+
+  assert.equal(scored.stats.recommendedCount, 3);
+  assert.equal(scored.byCity['佛山'].length, 1);
+  assert.equal(scored.byCity['广州'].length, 1);
+  assert.equal(scored.byCity['深圳'].length, 1);
+  assert.equal(scored.items[0].recommendScore > 50, true);
+});
+
