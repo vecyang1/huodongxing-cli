@@ -1,8 +1,10 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   HuodongxingClient,
+  createConsoleServer,
   runDiagnosticReconcile,
   classifySample,
 } from '../src/index.js';
@@ -191,6 +193,68 @@ async function main() {
     dtsQueryRegressionOk: diag.contracts.dtsQueryRegression.ok,
     upstreamOpencliFixStatus: diag.upstreamOpencliFix.status,
   });
+
+  // 15. Regional Recommendation Engine (Foshan · Guangzhou · Shenzhen)
+  const rec = await client.recommendEvents({
+    cities: 'foshan,guangzhou,shenzhen',
+    limit: 15,
+    perCityLimit: 8,
+  });
+  recordStep(
+    'regional_recommendation_foshan_guangzhou_shenzhen',
+    Boolean(
+      Array.isArray(rec.items) &&
+        rec.items.length > 0 &&
+        rec.region?.cities?.includes('佛山') &&
+        rec.region?.cities?.includes('广州') &&
+        rec.region?.cities?.includes('深圳') &&
+        (rec.stats?.byCityCounts?.['佛山'] || 0) > 0 &&
+        (rec.stats?.byCityCounts?.['广州'] || 0) > 0 &&
+        (rec.stats?.byCityCounts?.['深圳'] || 0) > 0
+    ),
+    {
+      engine: rec.engine,
+      recommendedCount: rec.items?.length || 0,
+      byCityCounts: rec.stats?.byCityCounts || {},
+      topEventTitle: rec.items?.[0]?.title || null,
+      topEventCity: rec.items?.[0]?.matchedCity || null,
+    }
+  );
+
+  // 16. Web Console HTTP Server & Persistent Watchlist E2E
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hdx-smoke-srv-'));
+  const prevWl = process.env.HDX_WATCHLIST_PATH;
+  process.env.HDX_WATCHLIST_PATH = path.join(tmpDir, 'watchlist.json');
+  const srv = createConsoleServer({ client });
+  try {
+    const { url } = await srv.listen(0, '127.0.0.1');
+    const healthRes = await fetch(`${url}/api/health`).then((r) => r.json());
+    const saveRes = await fetch(`${url}/api/watchlist`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: rec.items?.[0]?.id || '2882671341711',
+        title: rec.items?.[0]?.title || '【佛山站】2026亚马逊卖家年度增长峰会',
+        city: '佛山',
+        priority: 'high',
+      }),
+    }).then((r) => r.json());
+    const icsText = await fetch(`${url}/api/watchlist/ics`).then((r) => r.text());
+    recordStep(
+      'web_console_server_and_watchlist_e2e',
+      Boolean(healthRes.ok && saveRes.ok && icsText.startsWith('BEGIN:VCALENDAR')),
+      {
+        healthStatus: healthRes.status,
+        savedEventId: saveRes.item?.id || null,
+        validWatchlistIcs: icsText.startsWith('BEGIN:VCALENDAR'),
+      }
+    );
+  } finally {
+    await srv.close();
+    if (prevWl === undefined) delete process.env.HDX_WATCHLIST_PATH;
+    else process.env.HDX_WATCHLIST_PATH = prevWl;
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
 
   const allPassed = steps.every((s) => s.ok);
   const summary = {

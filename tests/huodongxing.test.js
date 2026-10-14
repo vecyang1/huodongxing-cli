@@ -22,12 +22,18 @@ import {
   updateOperatorConfig,
   classifySample,
   runDiagnosticReconcile,
+  listWatchlist,
+  upsertWatchlistItem,
+  updateWatchlistItem,
+  deleteWatchlistItem,
+  exportWatchlistIcs,
+  createConsoleServer,
   formatOutput,
 } from '../src/index.js';
 
 test('package metadata & AGPL-3.0-or-later license contract', () => {
   assert.equal(PACKAGE_NAME, 'huodongxing-cli');
-  assert.equal(VERSION, '1.0.0');
+  assert.equal(VERSION, '1.1.0');
   assert.equal(LICENSE, 'AGPL-3.0-or-later');
 });
 
@@ -533,4 +539,259 @@ test('Region & multi-city resolution (Foshan · Guangzhou · Shenzhen), promo fi
   assert.equal(scored.byCity['深圳'].length, 1);
   assert.equal(scored.items[0].recommendScore > 50, true);
 });
+
+test('Persistent Watchlist Store CRUD, soft-delete/restore, validation & RFC 5545 .ics export', () => {
+  const tmpWl = path.join(os.tmpdir(), `hdx-test-watchlist-${Date.now()}.json`);
+  process.env.HDX_WATCHLIST_PATH = tmpWl;
+
+  try {
+    // 1. Validation rejects invalid ID or missing title
+    assert.throws(
+      () => upsertWatchlistItem({ id: 'abc', title: 'Invalid ID' }),
+      (err) => err.statusCode === 400
+    );
+    assert.throws(
+      () => upsertWatchlistItem({ id: '2882671341711', title: '   ' }),
+      (err) => err.statusCode === 400
+    );
+
+    // 2. Create item
+    const created = upsertWatchlistItem({
+      id: 'https://www.huodongxing.com/event/2882671341711',
+      title: 'TikTok Shop全托管产业带优质好商招商会——佛山顺德站',
+      city: 'foshan',
+      time: '10/30 周五 13:30',
+      priority: 'high',
+      note: '顺德跨境选品对接',
+    });
+    assert.equal(created.action, 'created');
+    assert.equal(created.item.id, '2882671341711');
+    assert.equal(created.item.matchedCity, '佛山');
+    assert.equal(created.watchlist.counts.active, 1);
+
+    // 3. Update priority, note, and status
+    const updated = updateWatchlistItem('2882671341711', {
+      status: 'attending',
+      priority: 'medium',
+      note: '已报名确认参加',
+    });
+    assert.equal(updated.item.status, 'attending');
+    assert.equal(updated.item.priority, 'medium');
+    assert.equal(updated.item.note, '已报名确认参加');
+
+    // 4. Export .ics
+    const exported = exportWatchlistIcs({ status: 'active' });
+    assert.equal(exported.count, 1);
+    assert.equal(exported.ics.includes('UID:urn:hdx:ticket:2882671341711'), true);
+    assert.equal(exported.ics.includes('TikTok Shop全托管产业带优质好商招商会'), true);
+
+    // 5. Soft-delete (archive) & restore
+    const archived = updateWatchlistItem('2882671341711', { status: 'archived' });
+    assert.equal(archived.watchlist.counts.active, 0);
+    assert.equal(archived.watchlist.counts.archived, 1);
+
+    const restored = updateWatchlistItem('2882671341711', { status: 'saved' });
+    assert.equal(restored.watchlist.counts.active, 1);
+
+    // 6. Permanent delete
+    const deleted = deleteWatchlistItem('2882671341711');
+    assert.equal(deleted.watchlist.counts.total, 0);
+    assert.equal(listWatchlist({ status: 'all' }).count, 0);
+  } finally {
+    if (fs.existsSync(tmpWl)) fs.unlinkSync(tmpWl);
+    delete process.env.HDX_WATCHLIST_PATH;
+  }
+});
+
+test('Web Console HTTP Server (/api/*, static assets, validation, config persistence & .ics downloads)', async () => {
+  const tmpCfg = path.join(os.tmpdir(), `hdx-srv-cfg-${Date.now()}.json`);
+  const tmpWl = path.join(os.tmpdir(), `hdx-srv-wl-${Date.now()}.json`);
+  process.env.HDX_CONFIG_PATH = tmpCfg;
+  process.env.HDX_WATCHLIST_PATH = tmpWl;
+
+  const mockClient = {
+    engine: 'auto',
+    configState: resolveRuntimeConfig(),
+    sharedPacer: new RequestPacer(0),
+    recommendEvents: async (opts) => ({
+      engine: 'direct',
+      region: parsers.resolveRegionOrCities(opts),
+      keywords: ['AI', '出海'],
+      count: 2,
+      stats: {
+        totalFetched: 2,
+        pastFilteredOut: 0,
+        duplicatesRemoved: 0,
+        recommendedCount: 2,
+        byCityCounts: { 佛山: 1, 广州: 1, 深圳: 0 },
+      },
+      byCity: {
+        佛山: [
+          {
+            id: '2882671341711',
+            title: '佛山顺德跨境出海峰会',
+            time: '10/30 周五 13:30',
+            matchedCity: '佛山',
+            city: '广东佛山',
+            location: '广东佛山',
+            organizer: '出海协会',
+            recommendScore: 86,
+            matchedTags: ['出海', '跨境'],
+            url: 'https://www.huodongxing.com/event/2882671341711',
+          },
+        ],
+        广州: [
+          {
+            id: '6859860972400',
+            title: '2026广州国际时尚饰品及首饰展',
+            time: '10/31 周六 09:00',
+            matchedCity: '广州',
+            city: '广东广州',
+            location: '广东广州',
+            organizer: '探世展览',
+            recommendScore: 78,
+            matchedTags: ['饰品', '时尚'],
+            url: 'https://www.huodongxing.com/event/6859860972400',
+          },
+        ],
+        深圳: [],
+      },
+      items: [
+        {
+          rank: 1,
+          id: '2882671341711',
+          title: '佛山顺德跨境出海峰会',
+          time: '10/30 周五 13:30',
+          matchedCity: '佛山',
+          city: '广东佛山',
+          location: '广东佛山',
+          organizer: '出海协会',
+          recommendScore: 86,
+          matchedTags: ['出海', '跨境'],
+          url: 'https://www.huodongxing.com/event/2882671341711',
+        },
+        {
+          rank: 2,
+          id: '6859860972400',
+          title: '2026广州国际时尚饰品及首饰展',
+          time: '10/31 周六 09:00',
+          matchedCity: '广州',
+          city: '广东广州',
+          location: '广东广州',
+          organizer: '探世展览',
+          recommendScore: 78,
+          matchedTags: ['饰品', '时尚'],
+          url: 'https://www.huodongxing.com/event/6859860972400',
+        },
+      ],
+    }),
+    getEventDetail: async (id) => ({
+      engine: 'direct',
+      id,
+      title: `活动详情 ${id}`,
+      startTime: '2026-10-30T05:30:00.000Z',
+      endTime: '2026-10-30T09:30:00.000Z',
+      province: '广东',
+      city: '佛山',
+      address: '顺德展览中心',
+      tickets: [{ sn: 1, title: '免费观众票', price: 0, priceStr: '免费', enabled: true, statusStr: '可报名' }],
+      formItems: [{ key: 'Name', title: '姓名', required: true }],
+      registrationToken: { present: true },
+      url: `https://www.huodongxing.com/event/${id}`,
+    }),
+    getRanklist: async () => ({
+      engine: 'direct',
+      items: [{ rank: 1, id: '2871552596500', title: 'ROBOTECH 2026', heatScore: 9900, time: '10/27', location: '深圳', url: 'https://www.huodongxing.com/event/2871552596500' }],
+    }),
+    getTopics: async () => ({
+      engine: 'direct',
+      items: [{ rank: 1, id: '1024', title: 'AI 专题', views: 5000, eventCount: 10, summary: '精选AI活动', url: 'https://www.huodongxing.com/topic/1024' }],
+    }),
+    getOrganizers: async () => ({
+      engine: 'direct',
+      items: [{ rank: 1, name: '科创协会', eventsCount: 20, followers: 1500, bio: '大湾区峰会', url: 'https://www.huodongxing.com/org/1' }],
+    }),
+  };
+
+  const consoleServer = createConsoleServer({ client: mockClient, cacheTtlMs: 0 });
+  const { url } = await consoleServer.listen(0, '127.0.0.1');
+
+  try {
+    // Static HTML & assets
+    const indexRes = await fetch(`${url}/`);
+    assert.equal(indexRes.status, 200);
+    const indexHtml = await indexRes.text();
+    assert.equal(indexHtml.includes('活动行 · 区域智能推荐与诊断对账中心'), true);
+
+    // Health check
+    const health = await (await fetch(`${url}/api/health`)).json();
+    assert.equal(health.ok, true);
+
+    // Recommendations & .ics download
+    const rec = await (await fetch(`${url}/api/recommend?region=gba`)).json();
+    assert.equal(rec.ok, true);
+    assert.equal(rec.items.length, 2);
+
+    const recIcsRes = await fetch(`${url}/api/recommend/ics?region=gba`);
+    assert.equal(recIcsRes.status, 200);
+    assert.equal((await recIcsRes.text()).includes('BEGIN:VCALENDAR'), true);
+
+    // Watchlist validation error (400) & valid CRUD
+    const badWl = await fetch(`${url}/api/watchlist`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: '', title: '' }),
+    });
+    assert.equal(badWl.status, 400);
+
+    const goodWl = await (
+      await fetch(`${url}/api/watchlist`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: '2882671341711',
+          title: '佛山顺德跨境出海峰会',
+          city: '佛山',
+        }),
+      })
+    ).json();
+    assert.equal(goodWl.ok, true);
+    assert.equal(goodWl.watchlist.counts.active, 1);
+
+    // Diagnose sample validation & config update
+    const badSample = await fetch(`${url}/api/diagnose/sample`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sample: '   ' }),
+    });
+    assert.equal(badSample.status, 400);
+
+    const cfgUpdate = await (
+      await fetch(`${url}/api/diagnose/config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ updates: { minIntervalMs: 950, defaultCities: 'foshan,guangzhou,shenzhen' } }),
+      })
+    ).json();
+    assert.equal(cfgUpdate.ok, true);
+    assert.equal(cfgUpdate.configState.effective.minIntervalMs, 950);
+    assert.deepEqual(cfgUpdate.configState.effective.defaultCities, ['佛山', '广州', '深圳']);
+  } finally {
+    await consoleServer.close();
+    if (fs.existsSync(tmpCfg)) fs.unlinkSync(tmpCfg);
+    if (fs.existsSync(tmpWl)) fs.unlinkSync(tmpWl);
+    delete process.env.HDX_CONFIG_PATH;
+    delete process.env.HDX_WATCHLIST_PATH;
+  }
+});
+
+test('Zero-Facade static audit: public/app.js and public/index.html contain zero mock timers, alerts, or placeholder stubs', () => {
+  const appJs = fs.readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
+  const indexHtml = fs.readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
+
+  assert.equal(/setTimeout\s*\(/.test(appJs), false, 'public/app.js must not contain setTimeout stubs');
+  assert.equal(/\balert\s*\(/.test(appJs), false, 'public/app.js must not contain alert() placeholders');
+  assert.equal(/Coming soon|敬请期待/i.test(appJs + indexHtml), false, 'UI must not contain Coming Soon placeholders');
+});
+
 

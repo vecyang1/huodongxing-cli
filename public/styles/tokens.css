@@ -1,0 +1,38 @@
+:root {
+  --color-surface: #fbf9f9;
+  --color-surface-elevated: #ffffff;
+  --color-surface-container: #efeded;
+  --color-on-surface: #1b1c1c;
+  --color-on-surface-variant: #4f4537;
+  --color-primary: #7e5700;
+  --color-primary-hover: #634400;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #c8963e;
+  --color-primary-soft: #fef3c7;
+  --color-secondary: #635e54;
+  --color-tertiary: #5f5e5e;
+  --color-background: #fbf9f9;
+  --color-outline: #817565;
+  --color-outline-soft: #d6d1c7;
+  --color-success: #15803d;
+  --color-success-bg: #dcfce7;
+  --color-danger: #b91c1c;
+  --color-danger-bg: #fee2e2;
+  --color-city-foshan: #92400e;
+  --color-city-foshan-bg: #fef3c7;
+  --color-city-guangzhou: #1e40af;
+  --color-city-guangzhou-bg: #dbeafe;
+  --color-city-shenzhen: #065f46;
+  --color-city-shenzhen-bg: #d1fae5;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+  --radius-sm: 0.25rem;
+  --radius-default: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-full: 9999px;
+  --max-width: 1280px;
+  --shadow-sm: 0 1px 3px rgba(27, 28, 28, 0.06);
+  --shadow-md: 0 4px 12px rgba(27, 28, 28, 0.08);
+  --shadow-lg: 0 12px 32px rgba(27, 28, 28, 0.16);
+}

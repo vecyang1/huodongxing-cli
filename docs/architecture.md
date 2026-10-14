@@ -7,6 +7,10 @@
 ```mermaid
 flowchart TD
   CLI["CLI Binary (bin/huodongxing.js)\nhuodongxing / hdx"] --> Client["HuodongxingClient (src/index.js)\nDual-Engine Facade"]
+  WebUI["Web Console SPA\n(public/index.html + public/app.js)"] --> Server["HTTP & SSE Server\n(src/server.js — hdx serve)"]
+  Server --> Client
+  Server --> Watchlist["Persistent Watchlist Store\n(src/watchlist-store.js)"]
+  Server --> Diag["Diagnostic Reconciler\n(src/diagnose.js — 能读/能试/能调)"]
   OpenCLI["OpenCLI Adapter Suite\n(opencli-adapter/*.js)"] --> Parsers["SSOT Parsers & Contracts\n(src/parsers.js)"]
   Client --> Direct["DirectClient (src/direct-client.js)\nNode Fetch + Cookie Bootstrap"]
   Client --> Bridge["OpenCliClient (src/opencli-client.js)\nIn-Origin Browser Fetch Bridge"]
@@ -15,7 +19,7 @@ flowchart TD
   Direct --> Parsers
   Bridge --> Parsers
   Client --> ICS["RFC 5545 iCal Exporter\n(src/ics.js)"]
-  Client --> Diag["Diagnostic Reconciler\n(src/diagnose.js — 能读/能试/能调)"]
+  Client --> Diag
 ```
 
 ## 2. Module Ownership
@@ -24,15 +28,18 @@ flowchart TD
 | :--- | :--- |
 | `src/version.js` | SSOT package version, name, license, and description from `package.json`. |
 | `src/security-guard.js` | Pre-socket `SECURITY_ROUTE_DENYLIST` enforcement (`assertSafeRoute`, `inspectRouteSafety`, `assertSafeCliAction`) and sequential token-bucket `RequestPacer` (`minIntervalMs: 900`). |
-| `src/parsers.js` | Pure deterministic HTML & inline SSR JSON parsers (`ativityJson`, `eventTicketsJson`, `formItemsJson`, `mUserState`, `currentUser`) and `buildEventsUrl` (fixing the `d=ts` HTTP 500 bug). |
+| `src/parsers.js` | Pure deterministic HTML & inline SSR JSON parsers (`ativityJson`, `eventTicketsJson`, `formItemsJson`, `mUserState`, `currentUser`), `buildEventsUrl` (`d=ts` fix), bilingual city/region normalization (`佛山, 广州, 深圳`), and `scoreAndRankRecommendations`. |
 | `src/direct-client.js` | Direct HTTP engine with `HDXWAFID` cookie capture and Geetest v3 WAF redirect detection. |
 | `src/opencli-client.js` | OpenCLI Browser Bridge client executing in-origin `fetch()` via `opencli browser <session> eval`. |
-| `src/ics.js` | RFC 5545 `.ics` calendar generator for attendee tickets with `UTC+8` (`Asia/Shanghai`) conversion. |
+| `src/ics.js` | RFC 5545 `.ics` calendar generator for attendee tickets, regional recommendations, and watchlist items (`generateTicketsIcs`, `generateEventsIcs`). |
+| `src/watchlist-store.js` | Persistent server/CLI watchlist store (`~/.config/huodongxing-cli/watchlist.json`) with CRUD, soft-delete (`archived`) / restore (`saved`), and `.ics` export. |
+| `src/server.js` | HTTP + SSE real-time console server (`createConsoleServer`) serving `public/` and `/api/*` endpoints. |
 | `src/diagnose.js` | Diagnostic-First observability (`resolveRuntimeConfig`, `updateOperatorConfig`, `classifySample`, `runDiagnosticReconcile`). |
 | `src/formatters.js` | Multi-format output renderers (`json`, `table`, `md`, `csv`). |
 | `src/index.js` | Unified `HuodongxingClient` facade and SDK exports. |
-| `bin/huodongxing.js` | Executable CLI entrypoint (`huodongxing` & `hdx`). |
-| `opencli-adapter/` | SSOT-delegating OpenCLI command definitions mirrored to `~/.opencli/clis/huodongxing/`. |
+| `bin/huodongxing.js` | Executable CLI entrypoint (`huodongxing` & `hdx`, including `recommend`, `watchlist`, and `serve`). |
+| `public/` | Zero-facade Regional Recommendation, Watchlist & Diagnostic Web Console (`index.html`, `app.js`, `styles/tokens.css`, `styles/main.css`). |
+| `opencli-adapter/` | SSOT-delegating OpenCLI command definitions (`14` commands) synced to `~/.opencli/clis/huodongxing/` and upstream `@jackwener/opencli`. |
 
 ## 3. Reverse-Engineered Platform Contracts (`rea` AST Analysis)
 

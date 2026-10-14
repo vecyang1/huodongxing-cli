@@ -8,16 +8,27 @@ import {
   RequestPacer,
 } from './security-guard.js';
 import * as parsers from './parsers.js';
-import { generateTicketsIcs, parseTicketDateRange } from './ics.js';
+import { generateTicketsIcs, generateEventsIcs, parseTicketDateRange } from './ics.js';
 import { DirectClient } from './direct-client.js';
 import { OpenCliClient } from './opencli-client.js';
 import {
+  getConfigOverrideFile,
   resolveRuntimeConfig,
   updateOperatorConfig,
   checkUpstreamOpencliOwnerFix,
   classifySample,
   runDiagnosticReconcile,
 } from './diagnose.js';
+import {
+  getWatchlistFile,
+  extractCanonicalEventId,
+  listWatchlist,
+  upsertWatchlistItem,
+  updateWatchlistItem,
+  deleteWatchlistItem,
+  exportWatchlistIcs,
+} from './watchlist-store.js';
+import { createConsoleServer } from './server.js';
 import { formatOutput, toCsv, toMarkdownTable, toTerminalTable } from './formatters.js';
 
 /**
@@ -358,12 +369,22 @@ export {
   RequestPacer,
   parsers,
   generateTicketsIcs,
+  generateEventsIcs,
   parseTicketDateRange,
+  getConfigOverrideFile,
   resolveRuntimeConfig,
   updateOperatorConfig,
   checkUpstreamOpencliOwnerFix,
   classifySample,
   runDiagnosticReconcile,
+  getWatchlistFile,
+  extractCanonicalEventId,
+  listWatchlist,
+  upsertWatchlistItem,
+  updateWatchlistItem,
+  deleteWatchlistItem,
+  exportWatchlistIcs,
+  createConsoleServer,
   formatOutput,
   toCsv,
   toMarkdownTable,

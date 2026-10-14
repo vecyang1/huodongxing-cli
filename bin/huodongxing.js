@@ -11,6 +11,12 @@ import {
   updateOperatorConfig,
   classifySample,
   runDiagnosticReconcile,
+  listWatchlist,
+  upsertWatchlistItem,
+  updateWatchlistItem,
+  deleteWatchlistItem,
+  exportWatchlistIcs,
+  createConsoleServer,
   formatOutput,
 } from '../src/index.js';
 
@@ -98,7 +104,9 @@ Commands (Organizer Console):
   console-home            Inspect organizer console summary & Hawk MAC API token presence (/console/home)
   console-events          Fetch organizer published events (/console/eventadmin + /console/userpubevents, --status, --keyword)
 
-Commands (Diagnostic & Observability — 能读 / 能试 / 能调):
+Commands (Diagnostic, Watchlist & Web Console — 能读 / 能试 / 能调):
+  serve                   Launch the Regional Intelligence & Diagnostic Web Console (--port 4173, --host 127.0.0.1)
+  watchlist               Manage persistent regional event watchlist (list | add | update | remove | export-ics)
   diagnose                Run full E2E diagnostic reconciler (--offline to skip network probes)
   diagnose --sample <in>  Test sample URL/ID/city/region against Security Guard, region resolver, and route matcher (能试)
   diagnose --read-config  Inspect effective runtime configuration, region presets, source priority, and security rules (能读)
@@ -381,6 +389,81 @@ async function main() {
         });
       }
       break;
+    }
+
+    case 'watchlist':
+    case 'wl': {
+      const sub = (positional[1] || 'list').toLowerCase();
+      if (sub === 'list') {
+        result = listWatchlist({
+          status: flags.status || 'active',
+          city: flags.city || '',
+          q: flags.keyword || flags.q || '',
+        });
+        preferredColumns = ['id', 'matchedCity', 'title', 'time', 'priority', 'status', 'note', 'url'];
+      } else if (sub === 'add') {
+        result = upsertWatchlistItem({
+          id: positional[2] || flags.id || flags['event-id'],
+          title: flags.title,
+          time: flags.time,
+          city: flags.city,
+          location: flags.location,
+          organizer: flags.organizer,
+          priority: flags.priority || 'high',
+          status: flags.status || 'saved',
+          note: flags.note || '',
+        });
+      } else if (sub === 'update') {
+        const targetId = positional[2] || flags.id || flags['event-id'];
+        result = updateWatchlistItem(targetId, {
+          status: flags.status,
+          priority: flags.priority,
+          note: flags.note,
+          title: flags.title,
+        });
+      } else if (sub === 'remove' || sub === 'delete') {
+        const targetId = positional[2] || flags.id || flags['event-id'];
+        result = deleteWatchlistItem(targetId);
+      } else if (sub === 'export-ics') {
+        const exported = exportWatchlistIcs({
+          status: flags.status || 'active',
+          city: flags.city || '',
+        });
+        if (flags.output) {
+          fs.writeFileSync(String(flags.output), exported.ics, 'utf8');
+          result = { ok: true, count: exported.count, outputFile: String(flags.output) };
+        } else {
+          process.stdout.write(exported.ics);
+          return;
+        }
+      } else {
+        throw new Error(`Unknown watchlist subcommand '${sub}'. Use: list, add, update, remove, export-ics`);
+      }
+      break;
+    }
+
+    case 'serve':
+    case 'ui': {
+      const port = Number(flags.port || process.env.PORT || 4173);
+      const host = String(flags.host || '127.0.0.1');
+      const consoleServer = createConsoleServer({ client });
+      const info = await consoleServer.listen(port, host);
+      process.stdout.write(
+        `${JSON.stringify(
+          {
+            ok: true,
+            mode: 'web-console',
+            url: info.url,
+            host: info.host,
+            port: info.port,
+            engine: client.engine,
+            defaultCities: client.configState.effective.defaultCities,
+          },
+          null,
+          2
+        )}\n`
+      );
+      return;
     }
 
     default:

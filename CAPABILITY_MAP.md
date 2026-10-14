@@ -18,14 +18,16 @@
 | 10 | **Account Profile & Reversible Bio Config** | `GET /account/profile` & `POST /profile` | `hdx profile` / `hdx profile-set --brief "..." --dry-run` | `opencli huodongxing profile` / `profile-set` | ![10](evidence/screenshots/10_account_profile.png) |
 | 11 | **Organizer Console Dashboard (主办方首页)** | `GET /console/home` | `hdx console-home` | `opencli huodongxing console-home` | ![11](evidence/screenshots/11_console_home.png) |
 | 12 | **Organizer Event Administration (活动管理)** | `GET /console/eventadmin` & `POST /console/userpubevents` | `hdx console-events --status all` | `opencli huodongxing console-events --status all` | ![12](evidence/screenshots/12_console_eventadmin.png) |
+| 13 | **Regional Recommendations (佛山·广州·深圳)** | `GET /events?city={佛山\|广州\|深圳}` & `GET /api/recommend` | `hdx recommend --region gba` / `hdx serve` | `opencli huodongxing recommend --region gba` | ![13](evidence/screenshots/13_web_console_recommend.png) |
+| 14 | **Diagnostic & Observability Console (能读·能试·能调)** | `GET /api/diagnose/config`, `POST /api/diagnose/sample`, `POST /api/diagnose/reconcile` | `hdx diagnose` / `hdx watchlist` / `hdx serve` | `opencli huodongxing diagnose` | ![14](evidence/screenshots/14_web_console_diagnose.png) |
 
 ---
 
 ## 2. Reverse-Engineered Platform Contracts & Gotchas
 
-### 2.1 Upstream OpenCLI Bug Repaired (`d=ts` HTTP 500)
-- **Root Cause**: The upstream `opencli huodongxing events` adapter previously appended `d=ts` unconditionally in `buildEventsUrl()` even when `date` and `dateTo` were empty. Huodongxing's backend throws an unhandled exception (`HTTP 500`) when `d=ts` is sent without a date range.
-- **Fix Applied**: `d=ts` is now emitted strictly when `date` or `dateTo` is non-empty.
+### 2.1 Upstream OpenCLI Bug Repaired (`d=ts` HTTP 500, City Normalization & Promo Banner Filter)
+- **Root Cause**: The upstream `opencli huodongxing events` adapter previously appended `d=ts` unconditionally in `buildEventsUrl()` even when `date` and `dateTo` were empty, causing Huodongxing's backend to throw `HTTP 500`. It also passed English city names (`foshan`, `guangzhou`, `shenzhen`) raw and included unscheduled static promotional banners in row results.
+- **Fix Applied**: `d=ts` is emitted strictly when `date` or `dateTo` is non-empty; `normalizeCityName()` and `resolveCitiesList()` normalize bilingual city/region tokens (`gba` -> `佛山, 广州, 深圳`); and static promotional banners lacking both `time` and `location` are filtered out.
 
 ### 2.2 OpenResty WAF & Geetest v3 Rate-Limit Envelope
 - **Gateway**: OpenResty + Geetest v3 (`https://verify.huodongxing.com/gt3`).

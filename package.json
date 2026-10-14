@@ -1,7 +1,7 @@
 {
   "name": "huodongxing-cli",
-  "version": "1.0.0",
-  "description": "Agentic CLI, JavaScript SDK, and OpenCLI adapter suite for Huodongxing (活动行) event discovery, ticket passes, iCal export, attendee center, and organizer console automation",
+  "version": "1.1.0",
+  "description": "Agentic CLI, JavaScript SDK, OpenCLI adapter suite, and Web Inspector Console for Huodongxing (活动行) regional recommendations (佛山·广州·深圳), watchlist SSOT, ticket passes, iCal export, attendee center, and organizer console automation",
   "type": "module",
   "main": "src/index.js",
   "bin": {
@@ -11,6 +11,7 @@
   "scripts": {
     "test": "node --test tests/*.test.js",
     "smoke": "node scripts/smoke.js",
+    "serve": "node bin/huodongxing.js serve",
     "start": "node bin/huodongxing.js"
   },
   "repository": {
@@ -21,6 +22,11 @@
     "huodongxing",
     "hdx",
     "events",
+    "recommend",
+    "foshan",
+    "guangzhou",
+    "shenzhen",
+    "watchlist",
     "tickets",
     "icalendar",
     "opencli",

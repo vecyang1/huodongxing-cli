@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>活动行 · 区域精选推荐与诊断对账中心</title>
+  <link rel="stylesheet" href="/styles/tokens.css" />
+  <link rel="stylesheet" href="/styles/main.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="brand-block">
+        <span class="brand-mark">行</span>
+        <div>
+          <h1 class="brand-title">活动行 · 区域智能推荐与诊断对账中心</h1>
+          <p class="brand-subtitle" id="header-region-subtitle">广佛深核心区域（佛山 · 广州 · 深圳）实时数据源</p>
+        </div>
+      </div>
+      <div class="telemetry-bar">
+        <span class="pill pill-success" id="sse-status-pill" data-testid="sse-status-pill">实时同步已连接</span>
+        <span class="pill pill-primary" id="engine-status-pill" data-testid="engine-status-pill">引擎: auto</span>
+        <span class="pill" id="pacer-status-pill" data-testid="pacer-status-pill">频控间隔: 900ms</span>
+        <span class="pill" id="watchlist-count-pill" data-testid="watchlist-count-pill">关注清单: 0</span>
+      </div>
+    </div>
+    <nav class="nav-tabs" aria-label="主导航">
+      <button type="button" class="nav-tab active" data-route="recommend" data-testid="nav-recommend">
+        区域精选推荐（佛山·广州·深圳）
+      </button>
+      <button type="button" class="nav-tab" data-route="watchlist" data-testid="nav-watchlist">
+        关注与行程清单 (<span id="nav-watchlist-badge">0</span>)
+      </button>
+      <button type="button" class="nav-tab" data-route="explore" data-testid="nav-explore">
+        全站热榜与专题探索
+      </button>
+      <button type="button" class="nav-tab" data-route="diagnose" data-testid="nav-diagnose">
+        诊断对账与配置中心（能读·能试·能调）
+      </button>
+    </nav>
+  </header>
+
+  <main class="main-container">
+    <div id="global-feedback-banner" class="status-banner" role="status" data-testid="global-feedback-banner"></div>
+
+    <!-- VIEW 1: REGIONAL RECOMMENDATIONS (#recommend) -->
+    <section id="view-recommend" class="view-section active" data-testid="view-recommend">
+      <form id="recommend-filter-form" class="control-panel" data-testid="recommend-filter-form">
+        <div class="control-row">
+          <div class="field-group">
+            <label class="field-label" for="rec-region-select">区域预设</label>
+            <select id="rec-region-select" class="select-control" data-testid="rec-region-select">
+              <option value="gba">广佛深核心（佛山 · 广州 · 深圳）</option>
+              <option value="gba-full">粤港澳大湾区全域（广佛深莞珠港）</option>
+              <option value="yrd">长三角（上海 · 杭州 · 苏州）</option>
+              <option value="jjj">京津冀（北京 · 天津）</option>
+              <option value="sw">成渝双城（成都 · 重庆）</option>
+              <option value="custom">自定义城市列表</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label class="field-label" for="rec-cities-input">目标城市群（支持中英文）</label>
+            <input
+              id="rec-cities-input"
+              type="text"
+              class="input-control"
+              placeholder="例如: 佛山,广州,深圳 或 foshan,guangzhou,shenzhen"
+              value="佛山,广州,深圳"
+              data-testid="rec-cities-input"
+            />
+          </div>
+          <div class="field-group">
+            <label class="field-label" for="rec-keywords-input">偏好加权关键词</label>
+            <input
+              id="rec-keywords-input"
+              type="text"
+              class="input-control"
+              placeholder="AI,出海,跨境,TikTok,饰品,科技,创业"
+              data-testid="rec-keywords-input"
+            />
+          </div>
+          <div class="field-group" style="flex: 0 0 auto;">
+            <label class="field-label">&nbsp;</label>
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+              <button type="submit" class="btn btn-primary" id="btn-apply-recommend" data-testid="btn-apply-recommend">
+                更新区域推荐
+              </button>
+              <button type="button" class="btn btn-secondary" id="btn-force-refresh-recommend" data-testid="btn-force-refresh-recommend">
+                强制拉取实时数据
+              </button>
+              <a
+                href="/api/recommend/ics?region=gba"
+                class="btn btn-secondary"
+                id="btn-export-recommend-ics"
+                data-testid="btn-export-recommend-ics"
+                download="hdx-regional-recommendations.ics"
+              >
+                导出推荐日历 (.ics)
+              </a>
+            </div>
+          </div>
+        </div>
+      </form>
+
+      <div class="city-tabs-bar">
+        <div class="city-filter-group" id="city-filter-pills" data-testid="city-filter-pills">
+          <button type="button" class="city-tab-btn active" data-city="ALL" data-testid="city-tab-ALL">全部区域城市</button>
+          <button type="button" class="city-tab-btn" data-city="佛山" data-testid="city-tab-佛山">佛山</button>
+          <button type="button" class="city-tab-btn" data-city="广州" data-testid="city-tab-广州">广州</button>
+          <button type="button" class="city-tab-btn" data-city="深圳" data-testid="city-tab-深圳">深圳</button>
+        </div>
+        <div style="min-width: 220px;">
+          <input
+            type="search"
+            id="rec-local-search"
+            class="input-control"
+            style="width: 100%;"
+            placeholder="在结果中按标题/主办方/地点快速筛选..."
+            data-testid="rec-local-search"
+          />
+        </div>
+      </div>
+
+      <div class="stats-strip" id="rec-stats-strip" data-testid="rec-stats-strip">
+        <div class="stat-card">
+          <div class="stat-label">推荐活动总数</div>
+          <div class="stat-value" id="stat-rec-count">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">佛山近期可选</div>
+          <div class="stat-value" id="stat-city-foshan">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">广州近期可选</div>
+          <div class="stat-value" id="stat-city-guangzhou">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">深圳近期可选</div>
+          <div class="stat-value" id="stat-city-shenzhen">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">已过滤过期/重名</div>
+          <div class="stat-value" id="stat-filtered-out">0</div>
+        </div>
+      </div>
+
+      <div id="recommend-cards-grid" class="cards-grid" data-testid="recommend-cards-grid"></div>
+    </section>
+
+    <!-- VIEW 2: PERSISTENT WATCHLIST (#watchlist) -->
+    <section id="view-watchlist" class="view-section" data-testid="view-watchlist">
+      <div class="control-panel">
+        <h2 style="font-size: 1.05rem; margin-bottom: 0.75rem;">手动录入或收藏活动到持久层清单</h2>
+        <div id="watchlist-form-error" class="status-banner error" data-testid="watchlist-form-error"></div>
+        <form id="watchlist-add-form" class="control-row" data-testid="watchlist-add-form" novalidate>
+          <div class="field-group">
+            <label class="field-label" for="wl-input-id">活动 ID 或链接 *</label>
+            <input
+              id="wl-input-id"
+              type="text"
+              class="input-control"
+              placeholder="例如: 2882671341711 或 /event/2882671341711"
+              data-testid="wl-input-id"
+            />
+          </div>
+          <div class="field-group">
+            <label class="field-label" for="wl-input-title">活动标题 *</label>
+            <input
+              id="wl-input-title"
+              type="text"
+              class="input-control"
+              placeholder="输入活动名称"
+              data-testid="wl-input-title"
+            />
+          </div>
+          <div class="field-group" style="flex: 0 1 130px;">
+            <label class="field-label" for="wl-input-city">所在城市</label>
+            <select id="wl-input-city" class="select-control" data-testid="wl-input-city">
+              <option value="佛山">佛山</option>
+              <option value="广州">广州</option>
+              <option value="深圳">深圳</option>
+              <option value="香港">香港</option>
+              <option value="上海">上海</option>
+              <option value="北京">北京</option>
+            </select>
+          </div>
+          <div class="field-group" style="flex: 0 1 150px;">
+            <label class="field-label" for="wl-input-time">活动时间</label>
+            <input
+              id="wl-input-time"
+              type="text"
+              class="input-control"
+              placeholder="例如: 10/30 13:30"
+              data-testid="wl-input-time"
+            />
+          </div>
+          <div class="field-group" style="flex: 0 1 120px;">
+            <label class="field-label" for="wl-input-priority">优先级</label>
+            <select id="wl-input-priority" class="select-control" data-testid="wl-input-priority">
+              <option value="high">高优</option>
+              <option value="medium">中优</option>
+              <option value="low">低优</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label class="field-label" for="wl-input-note">参会备注</label>
+            <input
+              id="wl-input-note"
+              type="text"
+              class="input-control"
+              placeholder="例如: 顺德产业带对接 / 周末必去"
+              data-testid="wl-input-note"
+            />
+          </div>
+          <div class="field-group" style="flex: 0 0 auto;">
+            <label class="field-label">&nbsp;</label>
+            <button type="submit" class="btn btn-primary" id="btn-watchlist-add" data-testid="btn-watchlist-add">
+              保存到清单
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <div class="city-tabs-bar">
+        <div class="city-filter-group" id="watchlist-status-tabs" data-testid="watchlist-status-tabs">
+          <button type="button" class="city-tab-btn active" data-wl-status="active" data-testid="wl-tab-active">
+            关注与待参加 (<span id="wl-count-active">0</span>)
+          </button>
+          <button type="button" class="city-tab-btn" data-wl-status="attending" data-testid="wl-tab-attending">
+            已确认参加 (<span id="wl-count-attending">0</span>)
+          </button>
+          <button type="button" class="city-tab-btn" data-wl-status="archived" data-testid="wl-tab-archived">
+            已归档回收站 (<span id="wl-count-archived">0</span>)
+          </button>
+          <button type="button" class="city-tab-btn" data-wl-status="all" data-testid="wl-tab-all">
+            全部记录 (<span id="wl-count-total">0</span>)
+          </button>
+        </div>
+        <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+          <input
+            type="search"
+            id="wl-search-input"
+            class="input-control"
+            placeholder="搜索已保存的活动/备注..."
+            data-testid="wl-search-input"
+          />
+          <a
+            href="/api/watchlist/ics"
+            class="btn btn-secondary"
+            id="btn-export-watchlist-ics"
+            data-testid="btn-export-watchlist-ics"
+            download="hdx-watchlist.ics"
+          >
+            导出关注日历 (.ics)
+          </a>
+        </div>
+      </div>
+
+      <div id="watchlist-cards-grid" class="cards-grid" data-testid="watchlist-cards-grid"></div>
+    </section>
+
+    <!-- VIEW 3: EXPLORE RANKLIST, TOPICS & ORGANIZERS (#explore) -->
+    <section id="view-explore" class="view-section" data-testid="view-explore">
+      <div class="city-tabs-bar">
+        <div class="city-filter-group" id="explore-subtabs" data-testid="explore-subtabs">
+          <button type="button" class="city-tab-btn active" data-explore="ranklist" data-testid="explore-tab-ranklist">
+            全站优选热度榜
+          </button>
+          <button type="button" class="city-tab-btn" data-explore="topics" data-testid="explore-tab-topics">
+            精选活动专题
+          </button>
+          <button type="button" class="city-tab-btn" data-explore="organizers" data-testid="explore-tab-organizers">
+            活跃主办方名录
+          </button>
+        </div>
+        <button type="button" class="btn btn-secondary" id="btn-refresh-explore" data-testid="btn-refresh-explore">
+          刷新当前榜单
+        </button>
+      </div>
+      <div id="explore-cards-grid" class="cards-grid" data-testid="explore-cards-grid"></div>
+    </section>
+
+    <!-- VIEW 4: DIAGNOSTIC & OBSERVABILITY CENTER (#diagnose — 能读 / 能试 / 能调) -->
+    <section id="view-diagnose" class="view-section" data-testid="view-diagnose">
+      <div class="diag-grid">
+        <!-- 能读: Effective Config & Security Rules -->
+        <div class="control-panel" data-testid="panel-nengdu">
+          <div class="card-top" style="margin-bottom: 0.75rem;">
+            <h2 style="font-size: 1.05rem;">1. 能读：当前生效规则与配置溯源</h2>
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-reload-config" data-testid="btn-reload-config">
+              重新读取配置
+            </button>
+          </div>
+          <p style="font-size: 0.82rem; color: var(--color-on-surface-variant); margin-bottom: 0.75rem;">
+            单一事实来源优先级：<code>default &lt; config_file &lt; environment &lt; cli_override</code>
+          </p>
+          <table class="data-table" id="config-sources-table" data-testid="config-sources-table">
+            <thead>
+              <tr>
+                <th>配置项</th>
+                <th>当前生效值</th>
+                <th>生效来源</th>
+              </tr>
+            </thead>
+            <tbody id="config-sources-tbody"></tbody>
+          </table>
+          <div style="margin-top: 1rem;">
+            <h3 style="font-size: 0.9rem; margin-bottom: 0.4rem;">上游 OpenCLI 适配器修复状态与安全门禁规则</h3>
+            <div id="upstream-fix-badge" style="margin-bottom: 0.6rem;"></div>
+            <div class="code-box" id="security-rules-box" data-testid="security-rules-box"></div>
+          </div>
+        </div>
+
+        <!-- 能试: Interactive Sample Classifier -->
+        <div class="control-panel" data-testid="panel-nengshi">
+          <h2 style="font-size: 1.05rem; margin-bottom: 0.5rem;">2. 能试：样本路由识别与安全策略验算器</h2>
+          <p style="font-size: 0.82rem; color: var(--color-on-surface-variant); margin-bottom: 0.75rem;">
+            输入任意活动链接、活动 ID、或城市群（如 <code>foshan,guangzhou,shenzhen</code>），调用真实 <code>classifySample</code> 验算解析器与安全拦截判定。
+          </p>
+          <div id="sample-error-banner" class="status-banner error" data-testid="sample-error-banner"></div>
+          <form id="sample-test-form" data-testid="sample-test-form" novalidate>
+            <div class="control-row" style="margin-bottom: 0.75rem;">
+              <div class="field-group">
+                <label class="field-label" for="sample-input">测试样本输入 *</label>
+                <input
+                  id="sample-input"
+                  type="text"
+                  class="input-control"
+                  placeholder="例如: foshan,guangzhou,shenzhen 或 /payment/cashier"
+                  value="foshan,guangzhou,shenzhen"
+                  data-testid="sample-input"
+                />
+              </div>
+              <div class="field-group" style="flex: 0 0 110px;">
+                <label class="field-label" for="sample-method">请求方法</label>
+                <select id="sample-method" class="select-control" data-testid="sample-method">
+                  <option value="GET">GET</option>
+                  <option value="POST">POST</option>
+                  <option value="DELETE">DELETE</option>
+                </select>
+              </div>
+              <div class="field-group" style="flex: 0 0 auto;">
+                <label class="field-label">&nbsp;</label>
+                <button type="submit" class="btn btn-primary" id="btn-run-sample" data-testid="btn-run-sample">
+                  立即试算
+                </button>
+              </div>
+            </div>
+          </form>
+          <div class="tag-row" style="margin-bottom: 0.75rem;">
+            <button type="button" class="btn btn-secondary btn-sm sample-preset-btn" data-sample="foshan,guangzhou,shenzhen" data-method="GET" data-testid="preset-gba">
+              样本: 广佛深英文别名
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm sample-preset-btn" data-sample="2871552596500" data-method="GET" data-testid="preset-event">
+              样本: 活动详情 ID
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm sample-preset-btn" data-sample="https://www.huodongxing.com/payment/cashier" data-method="POST" data-testid="preset-cashier">
+              样本: 支付收银台拦截
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm sample-preset-btn" data-sample="/account/destroy" data-method="POST" data-testid="preset-destroy">
+              样本: 销户危险路由拦截
+            </button>
+          </div>
+          <div class="code-box" id="sample-result-box" data-testid="sample-result-box">点击“立即试算”查看真实规则匹配结果...</div>
+        </div>
+
+        <!-- 能调: Controlled Operator Config Editor & Reconciler -->
+        <div class="control-panel" data-testid="panel-nengtiao">
+          <h2 style="font-size: 1.05rem; margin-bottom: 0.5rem;">3. 能调：受控业务配置热覆盖与一键对账</h2>
+          <p style="font-size: 0.82rem; color: var(--color-on-surface-variant); margin-bottom: 0.75rem;">
+            持久化写入 <code>~/.config/huodongxing-cli/config.json</code>，保存后自动从服务端重读并刷新全局推荐。
+          </p>
+          <div id="config-form-banner" class="status-banner" data-testid="config-form-banner"></div>
+          <form id="config-edit-form" data-testid="config-edit-form" novalidate>
+            <div class="field-group" style="margin-bottom: 0.75rem;">
+              <label class="field-label" for="cfg-default-region">默认区域代号 (<code>defaultRegion</code>)</label>
+              <select id="cfg-default-region" class="select-control" data-testid="cfg-default-region">
+                <option value="gba">gba（广佛深核心：佛山·广州·深圳）</option>
+                <option value="gba-full">gba-full（大湾区全域）</option>
+                <option value="yrd">yrd（长三角：上海·杭州·苏州）</option>
+                <option value="jjj">jjj（京津冀：北京·天津）</option>
+                <option value="sw">sw（成渝：成都·重庆）</option>
+              </select>
+            </div>
+            <div class="field-group" style="margin-bottom: 0.75rem;">
+              <label class="field-label" for="cfg-default-cities">默认推荐城市列表 (<code>defaultCities</code>) *</label>
+              <input
+                id="cfg-default-cities"
+                type="text"
+                class="input-control"
+                value="佛山,广州,深圳"
+                data-testid="cfg-default-cities"
+              />
+            </div>
+            <div class="field-group" style="margin-bottom: 0.75rem;">
+              <label class="field-label" for="cfg-default-keywords">默认兴趣加权词 (<code>defaultKeywords</code>) *</label>
+              <input
+                id="cfg-default-keywords"
+                type="text"
+                class="input-control"
+                data-testid="cfg-default-keywords"
+              />
+            </div>
+            <div class="field-group" style="margin-bottom: 0.85rem;">
+              <label class="field-label" for="cfg-min-interval">WAF 请求频控间隔毫秒 (<code>minIntervalMs</code>, 100–60000) *</label>
+              <input
+                id="cfg-min-interval"
+                type="number"
+                class="input-control"
+                value="900"
+                min="100"
+                max="60000"
+                data-testid="cfg-min-interval"
+              />
+            </div>
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1rem;">
+              <button type="submit" class="btn btn-primary" id="btn-save-config" data-testid="btn-save-config">
+                保存并持久化配置
+              </button>
+              <button type="button" class="btn btn-danger" id="btn-reset-config" data-testid="btn-reset-config">
+                恢复出厂默认配置
+              </button>
+            </div>
+          </form>
+
+          <div style="border-top: 1px solid var(--color-outline-soft); padding-top: 0.85rem;">
+            <div class="card-top" style="margin-bottom: 0.5rem;">
+              <h3 style="font-size: 0.92rem;">全链路契约对账器</h3>
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-run-reconcile" data-testid="btn-run-reconcile">
+                执行契约对账
+              </button>
+            </div>
+            <div class="code-box" id="reconcile-result-box" data-testid="reconcile-result-box">点击“执行契约对账”验证 d=ts 修复、安全门禁与配置契约...</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- EVENT DETAIL & TICKET/FORM SCHEMA MODAL -->
+  <div class="modal-backdrop" id="event-detail-modal" role="dialog" aria-modal="true" data-testid="event-detail-modal">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <div>
+          <span class="pill pill-primary" id="modal-event-id">ID: --</span>
+          <h2 id="modal-event-title" style="font-size: 1.15rem; margin-top: 0.35rem;">加载活动详情中...</h2>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" id="btn-close-modal" data-testid="btn-close-modal">
+          关闭窗口
+        </button>
+      </div>
+      <div id="modal-event-body" data-testid="modal-event-body"></div>
+    </div>
+  </div>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

@@ -20,11 +20,15 @@
 3. **Pre-Socket Security Route Denylist (`SecurityGuard`)**:
    - Deterministic pre-socket guard blocks account deletion, password/binding changes, published event deletion/cancellation, attendee ticket cancellation/refund, and cashier/payment routes before any network request is sent.
 4. **Diagnostic-First Observability (`diagnose` — 能读 / 能试 / 能调)**:
-   - **能读 (`--read-config`)**: Inspect effective configuration, source priority (`default < config_file < environment < cli_override`), upstream OpenCLI `d=ts` owner fix status, and active security rules.
-   - **能试 (`--sample <url|id>`)**: Pass any URL, path, or event ID to inspect route classification, matched parser, and pre-socket security verdict using the real runtime engine.
+   - **能读 (`--read-config`)**: Inspect effective configuration, source priority (`default < config_file < environment < cli_override`), upstream OpenCLI `d=ts` + city alias + promo banner owner fix status, and active security rules.
+   - **能试 (`--sample <url|id>`)**: Pass any URL, path, event ID, or city/region token (`foshan,guangzhou,shenzhen`) to inspect route classification, matched parser, and pre-socket security verdict using the real runtime engine.
    - **能调 (`--set-config` / `--reset-config`)**: Adjust operator runtime settings (`~/.config/huodongxing-cli/config.json`) without modifying code constants.
-5. **RFC 5545 iCalendar (`.ics`) Export**:
-   - One-command export (`huodongxing export-ics --output tickets.ics`) converting registered tickets into standard `VCALENDAR`/`VEVENT` entries normalized to `Asia/Shanghai` (`UTC+8`).
+5. **Regional Recommendation Engine (`recommend` — 佛山 · 广州 · 深圳 Default)**:
+   - Multi-city discovery across **Foshan, Guangzhou, and Shenzhen (`佛山, 广州, 深圳` / `foshan, guangzhou, shenzhen`)** or region presets (`gba`, `gba-full`, `yrd`, `jjj`, `sw`) with bilingual city alias normalization, static promotional banner filtering, past-event exclusion (`upcomingOnly`), cross-city deduplication, and multi-factor relevance scoring (`recommendScore` 0–100).
+6. **Persistent Watchlist CRUD & iCalendar (`.ics`) Export**:
+   - Server-side and CLI-backed watchlist (`~/.config/huodongxing-cli/watchlist.json`) with priority sorting, inline notes, soft-delete (`archived`) / restore (`saved`), permanent delete, and one-command RFC 5545 `.ics` calendar export (`hdx export-ics`, `/api/recommend/ics`, `/api/watchlist/ics`).
+7. **Interactive Web Console & Real-Time SSE Inspector (`hdx serve`)**:
+   - Launch `hdx serve --port 4173` (or `npm run serve`) for the zero-facade Regional Recommendation, Watchlist & Diagnostic Web Console featuring live SSE push (`/api/stream`), Event Detail & Ticket Schema modal inspection, and unified `能读 / 能试 / 能调` controls.
 
 ---
 
@@ -40,6 +44,9 @@ npm link
 # Verify CLI & run offline diagnostic reconciler
 huodongxing --version
 hdx diagnose --offline
+
+# Launch the Regional Recommendation & Diagnostic Web Console
+hdx serve --port 4173
 ```
 
 ---
@@ -59,7 +66,17 @@ hdx organizers --limit 10 -f table
 hdx ranklist --limit 10 -f table
 hdx topics --limit 10 -f md
 
-# 2. Authenticated User Center
+# 2. Persistent Watchlist & Web Console Server
+hdx watchlist list -f table
+hdx watchlist add 2882671341711 --title "【佛山站】2026亚马逊卖家年度增长峰会" --city "佛山" --priority high --note "顺德卖家峰会"
+hdx watchlist update 2882671341711 --status attending --note "周四下午准时出席"
+hdx watchlist archive 2882671341711
+hdx watchlist restore 2882671341711
+hdx watchlist remove 2882671341711
+hdx watchlist export-ics --output ./watchlist.ics
+hdx serve --port 4173
+
+# 3. Authenticated User Center
 hdx status
 hdx timeline --limit 10 -f table
 hdx tickets --status all -f table
@@ -72,11 +89,11 @@ hdx profile-set --brief "AI & Robotics Builder" --execute
 hdx register 2871552596500 --ticket-sn 1 --dry-run
 hdx export-ics --output ./my-tickets.ics
 
-# 3. Organizer Console
+# 4. Organizer Console
 hdx console-home
 hdx console-events --status all -f table
 
-# 4. Diagnostic & Observability (能读 / 能试 / 能调)
+# 5. Diagnostic & Observability (能读 / 能试 / 能调)
 hdx diagnose
 hdx diagnose --read-config
 hdx diagnose --sample "foshan,guangzhou,shenzhen"
@@ -98,7 +115,12 @@ Supported output formats (`-f, --format`):
 ## 📦 JavaScript / Node.js SDK Usage
 
 ```js
-import { HuodongxingClient, classifySample } from 'huodongxing-cli';
+import {
+  HuodongxingClient,
+  WatchlistStore,
+  createConsoleServer,
+  classifySample,
+} from 'huodongxing-cli';
 
 const client = new HuodongxingClient({
   engine: 'auto', // 'auto' | 'direct' | 'opencli'
@@ -120,8 +142,15 @@ console.log(search.items);
 const detail = await client.getEventDetail('2871552596500');
 console.log(detail.title, detail.tickets, detail.formItems);
 
-// Export personal tickets to RFC 5545 .ics
-const { ics } = await client.exportTicketsIcs({ status: 'valid' });
+// Persistent Watchlist CRUD & RFC 5545 .ics export
+const store = new WatchlistStore();
+store.upsert({ id: '2882671341711', title: '佛山站跨境峰会', city: '佛山', priority: 'high' });
+const watchlistIcs = store.exportIcs();
+
+// Start the Web Console & SSE Diagnostic Server
+const srv = createConsoleServer({ client });
+const { url } = await srv.listen(4173, '127.0.0.1');
+console.log('Web Console running at:', url);
 
 // Test a sample route against the pre-socket security guard
 console.log(classifySample('/payment/cashier', { method: 'POST' }));
@@ -136,7 +165,7 @@ The `opencli-adapter/` directory provides 14 SSOT-backed OpenCLI commands that d
 | Command | Access | Strategy | Description |
 | :--- | :--- | :--- | :--- |
 | `opencli huodongxing recommend` | `read` | `PUBLIC` | Smart regional recommendations (`佛山·广州·深圳` default, `--region`, `--cities`) |
-| `opencli huodongxing events` | `read` | `PUBLIC` | Search & filter public events (with `d=ts` date-range fix) |
+| `opencli huodongxing events` | `read` | `PUBLIC` | Search & filter public events (with `d=ts` date-range fix, `--cities`, `--region`, `--upcomingOnly`) |
 | `opencli huodongxing detail <id>` | `read` | `PUBLIC` | Event detail, ticket tiers & registration form schema |
 | `opencli huodongxing organizers` | `read` | `PUBLIC` | Featured event organizers directory |
 | `opencli huodongxing ranklist` | `read` | `PUBLIC` | Popularity & heat index ranklist |
@@ -152,7 +181,7 @@ The `opencli-adapter/` directory provides 14 SSOT-backed OpenCLI commands that d
 
 ---
 
-## 🖼️ Visual Capability Tour (12 Functional Areas, PII-Sanitized)
+## 🖼️ Visual Capability Tour (14 Functional & Web Console Surfaces, PII-Sanitized)
 
 | Area | Route | Screenshot |
 | :--- | :--- | :--- |
@@ -168,16 +197,18 @@ The `opencli-adapter/` directory provides 14 SSOT-backed OpenCLI commands that d
 | **10. Account Profile** | `GET /account/profile` | ![10 Account Profile](evidence/screenshots/10_account_profile.png) |
 | **11. Console Home** | `GET /console/home` | ![11 Console Home](evidence/screenshots/11_console_home.png) |
 | **12. Console EventAdmin** | `GET /console/eventadmin` | ![12 Console EventAdmin](evidence/screenshots/12_console_eventadmin.png) |
+| **13. Web Console: Regional Recommendations (佛山·广州·深圳)** | `hdx serve` (`/#recommend`) | ![13 Web Console Recommend](evidence/screenshots/13_web_console_recommend.png) |
+| **14. Web Console: Diagnostic Center (能读·能试·能调)** | `hdx serve` (`/#diagnose`) | ![14 Web Console Diagnose](evidence/screenshots/14_web_console_diagnose.png) |
 
 ---
 
 ## 🧪 Testing & Verification
 
 ```bash
-# Run unit & contract test suite
+# Run unit, server, watchlist & browser E2E test suite
 npm test
 
-# Run live E2E smoke test suite
+# Run 16-step live E2E production smoke test suite
 npm run smoke
 ```
 

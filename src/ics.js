@@ -25,26 +25,59 @@ function formatUtcIcsTimestamp(date) {
  * - "10/27 09:00 至 10/29 15:00" (with fallback year from eventTime or current year)
  */
 export function parseTicketDateRange(eventTime, timeRange, fallbackYear = new Date().getFullYear()) {
-  const yearMatch = String(eventTime || '').match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})\s+(\d{1,2}):(\d{2})/);
+  const combined = `${eventTime || ''} ${timeRange || ''}`.trim();
+
+  // ISO format (e.g. from parseEventDetailHtml startTime/endTime)
+  const isoMatch = String(eventTime || '').match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/);
+  if (isoMatch) {
+    const startUtc = new Date(eventTime);
+    const endUtc = timeRange && !Number.isNaN(new Date(timeRange).getTime())
+      ? new Date(timeRange)
+      : new Date(startUtc.getTime() + 2 * 3600 * 1000);
+    if (!Number.isNaN(startUtc.getTime())) {
+      return { start: startUtc, end: endUtc };
+    }
+  }
+
+  const yearMatch = String(eventTime || '').match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})(?:\s+(\d{1,2}):(\d{2}))?/);
   const baseYear = yearMatch ? Number(yearMatch[1]) : fallbackYear;
 
-  const spanMatch = String(timeRange || '').match(
-    /(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})\s*至\s*(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})/,
+  const spanMatch = combined.match(
+    /(\d{1,2})[/-](\d{1,2})\s+(?:周[一二三四五六日天]\s*)?(\d{1,2}):(\d{2})\s*(?:至|~|-)\s*(\d{1,2})[/-](\d{1,2})\s+(?:周[一二三四五六日天]\s*)?(\d{1,2}):(\d{2})/,
   );
   if (spanMatch) {
     const [, sm, sd, sh, smin, em, ed, eh, emin] = spanMatch.map(Number);
     const endYear = em < sm ? baseYear + 1 : baseYear;
-    // Huodongxing times are Asia/Shanghai (UTC+8)
     const startUtc = new Date(Date.UTC(baseYear, sm - 1, sd, sh - 8, smin, 0));
     const endUtc = new Date(Date.UTC(endYear, em - 1, ed, eh - 8, emin, 0));
     return { start: startUtc, end: endUtc };
   }
 
   if (yearMatch) {
-    const [, y, m, d, h, min] = yearMatch.map(Number);
-    const startUtc = new Date(Date.UTC(y, m - 1, d, h - 8, min, 0));
+    const [, y, m, d, h = '9', min = '0'] = yearMatch;
+    const startUtc = new Date(Date.UTC(Number(y), Number(m) - 1, Number(d), Number(h) - 8, Number(min), 0));
     const endUtc = new Date(startUtc.getTime() + 2 * 3600 * 1000);
     return { start: startUtc, end: endUtc };
+  }
+
+  // Match "10/30 周五 13:30" or "10/31 周六 ~ 11/01 周日"
+  const mdTimeMatch = combined.match(/(\d{1,2})[/-](\d{1,2})(?:\s*周[一二三四五六日天])?(?:\s+(\d{1,2}):(\d{2}))?/);
+  if (mdTimeMatch) {
+    const sm = Number(mdTimeMatch[1]);
+    const sd = Number(mdTimeMatch[2]);
+    const sh = mdTimeMatch[3] !== undefined ? Number(mdTimeMatch[3]) : 9;
+    const smin = mdTimeMatch[4] !== undefined ? Number(mdTimeMatch[4]) : 0;
+    const startUtc = new Date(Date.UTC(baseYear, sm - 1, sd, sh - 8, smin, 0));
+
+    const multiDayMatch = combined.match(/(?:至|~|-)\s*(\d{1,2})[/-](\d{1,2})/);
+    if (multiDayMatch) {
+      const em = Number(multiDayMatch[1]);
+      const ed = Number(multiDayMatch[2]);
+      const endYear = em < sm ? baseYear + 1 : baseYear;
+      const endUtc = new Date(Date.UTC(endYear, em - 1, ed, 18 - 8, 0, 0));
+      return { start: startUtc, end: endUtc };
+    }
+    return { start: startUtc, end: new Date(startUtc.getTime() + 2 * 3600 * 1000) };
   }
 
   const now = new Date();
@@ -72,15 +105,19 @@ export function generateTicketsIcs(tickets = [], options = {}) {
   ];
 
   for (const ticket of tickets) {
-    const uid = `urn:hdx:ticket:${ticket.ticketNo || ticket.eventId || Math.random().toString(36).slice(2)}`;
-    const { start, end } = parseTicketDateRange(ticket.eventTime, ticket.timeRange);
-    const summary = ticket.eventTitle || '活动行票券';
-    const location = ticket.venue || '';
+    const uid = `urn:hdx:ticket:${ticket.ticketNo || ticket.eventId || ticket.id || Math.random().toString(36).slice(2)}`;
+    const { start, end } = parseTicketDateRange(ticket.eventTime || ticket.startTime || ticket.time, ticket.timeRange || ticket.endTime);
+    const summary = ticket.eventTitle || ticket.title || '活动行票券';
+    const location = ticket.venue || ticket.address || ticket.location || ticket.city || '';
+    const eventUrl = ticket.eventUrl || ticket.url || '';
     const descParts = [
-      `电子票号: ${ticket.ticketNo || 'N/A'}`,
-      `票种: ${ticket.ticketTitle || '免费票'} (${ticket.price || '免费'})`,
-      `状态: ${ticket.statusLabel || ticket.statusKey || '有效票'}`,
-      ticket.eventUrl ? `活动链接: ${ticket.eventUrl}` : '',
+      ticket.ticketNo ? `电子票号: ${ticket.ticketNo}` : '',
+      ticket.id || ticket.eventId ? `活动ID: ${ticket.eventId || ticket.id}` : '',
+      ticket.ticketTitle ? `票种: ${ticket.ticketTitle} (${ticket.price || '免费'})` : '',
+      ticket.organizer ? `主办方: ${ticket.organizer}` : '',
+      ticket.note ? `备注: ${ticket.note}` : '',
+      `状态: ${ticket.statusLabel || ticket.statusKey || ticket.status || '有效'}`,
+      eventUrl ? `活动链接: ${eventUrl}` : '',
       ticket.detailUrl ? `票券详情: ${ticket.detailUrl}` : '',
     ].filter(Boolean);
 
@@ -93,7 +130,7 @@ export function generateTicketsIcs(tickets = [], options = {}) {
       `SUMMARY:${escapeIcsText(summary)}`,
       `LOCATION:${escapeIcsText(location)}`,
       `DESCRIPTION:${escapeIcsText(descParts.join('\n'))}`,
-      ticket.eventUrl ? `URL:${escapeIcsText(ticket.eventUrl)}` : '',
+      eventUrl ? `URL:${escapeIcsText(eventUrl)}` : '',
       'STATUS:CONFIRMED',
       'END:VEVENT',
     );
@@ -101,4 +138,14 @@ export function generateTicketsIcs(tickets = [], options = {}) {
 
   lines.push('END:VCALENDAR');
   return lines.filter(Boolean).join('\r\n') + '\r\n';
+}
+
+/**
+ * Generates an RFC 5545 VCALENDAR string from an array of recommended or watchlisted events.
+ */
+export function generateEventsIcs(events = [], options = {}) {
+  return generateTicketsIcs(events, {
+    calendarName: options.calendarName || 'Huodongxing Regional Events & Watchlist',
+    ...options,
+  });
 }

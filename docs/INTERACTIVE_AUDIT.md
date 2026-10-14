@@ -1,0 +1,44 @@
+# Interactive Surface Audit & Zero-Facade Contract (`docs/INTERACTIVE_AUDIT.md`)
+
+> **Zero-Facade Invariant Verification**: All interactive elements across the Web Console (`public/index.html`, `public/app.js`, `src/server.js`) and CLI (`bin/huodongxing.js`) have been audited and verified.
+> - `setTimeout` network simulation stubs: **0**
+> - Static demo arrays masquerading as working features: **0**
+> - Dead `onClick` handlers or placeholder `alert()` / `Coming soon` toasts: **0**
+> - Authoritative persistence: `~/.config/huodongxing-cli/config.json` (operator config) & `~/.config/huodongxing-cli/watchlist.json` (persistent regional watchlist) with post-write server re-read and SSE real-time push (`/api/stream`).
+
+## 1. Web Console Interactive Surface Inventory
+
+| Area (Header / Sidebar / Main / Modals) | Element & Action | Current Implementation (Real / Mock / Dead) | Target Production Behavior | Persistence / API Destination |
+| :--- | :--- | :--- | :--- | :--- |
+| **Header Telemetry** | `#sse-status-pill` (`实时同步已连接`) | **Real** | Subscribes to `EventSource('/api/stream')`, reflects live connection state, and triggers re-fetches on `watchlist_updated` and `config_updated` events | `GET /api/stream` (SSE) |
+| **Header Telemetry** | `#engine-status-pill` & `#pacer-status-pill` | **Real** | Displays authoritative runtime engine (`auto` / `direct` / `opencli`) and `RequestPacer` interval (`minIntervalMs`) from server config | `GET /api/diagnose/config` |
+| **Header Telemetry** | `#watchlist-count-pill` & `#nav-watchlist-badge` | **Real** | Displays live count of active watchlisted events from disk store | `GET /api/watchlist?status=all` |
+| **Header Navigation** | `[data-testid="nav-recommend"]` (`#recommend`) | **Real** | Switches active route to Regional Recommendations and syncs URL hash `#recommend` (survives reload) | `window.location.hash` + `GET /api/recommend` |
+| **Header Navigation** | `[data-testid="nav-watchlist"]` (`#watchlist`) | **Real** | Switches active route to Persistent Watchlist and syncs URL hash `#watchlist` (survives reload) | `window.location.hash` + `GET /api/watchlist` |
+| **Header Navigation** | `[data-testid="nav-explore"]` (`#explore`) | **Real** | Switches active route to Ranklist/Topics/Organizers Explorer and syncs URL hash `#explore` | `window.location.hash` + `GET /api/ranklist` |
+| **Header Navigation** | `[data-testid="nav-diagnose"]` (`#diagnose`) | **Real** | Switches active route to Diagnostic & Config Center (`能读·能试·能调`) and syncs URL hash `#diagnose` | `window.location.hash` + `GET /api/diagnose/config` |
+| **Main · Regional Recommend (`#recommend`)** | `#rec-region-select` (`区域预设`) | **Real** | Selects region preset (`gba` -> `佛山,广州,深圳`, `gba-full`, `yrd`, `jjj`, `sw`, `custom`) and updates target cities input | Updates `#rec-cities-input` |
+| **Main · Regional Recommend (`#recommend`)** | `#recommend-filter-form` & `#btn-apply-recommend` | **Real** | Submits region, bilingual cities (`佛山,广州,深圳` / `foshan,guangzhou,shenzhen`), and weighted keywords to backend recommendation engine | `GET /api/recommend` -> `HuodongxingClient.recommendEvents()` |
+| **Main · Regional Recommend (`#recommend`)** | `#btn-force-refresh-recommend` (`强制拉取实时数据`) | **Real** | Bypasses server TTL cache (`refresh=1`) to fetch fresh SSR HTML from `huodongxing.com` across all regional cities | `GET /api/recommend?refresh=1` |
+| **Main · Regional Recommend (`#recommend`)** | `#btn-export-recommend-ics` (`导出推荐日历 .ics`) | **Real** | Downloads RFC 5545 `.ics` calendar file containing all currently recommended regional events | `GET /api/recommend/ics` (`text/calendar`) |
+| **Main · Regional Recommend (`#recommend`)** | `#city-filter-pills` (`全部区域城市` / `佛山` / `广州` / `深圳`) | **Real** | Filters recommended event cards by city (`ALL`, `佛山`, `广州`, `深圳`) and displays per-city upcoming counts | Derived from `state.recommendData.byCity` |
+| **Main · Regional Recommend (`#recommend`)** | `#rec-local-search` (`快速筛选输入框`) | **Real** | Filters visible recommendation cards by title, organizer, venue, or matched tags in real time | Client filter on authoritative `state.recommendData` |
+| **Main · Regional Recommend (`#recommend`)** | `.js-inspect-event` (`查看票种与报名表`) | **Real** | Opens Event Detail Modal and fetches live inline SSR JSON (`ativityJson`, `eventTicketsJson`, `formItemsJson`) | `GET /api/event/:id` |
+| **Main · Regional Recommend (`#recommend`)** | `.js-save-watchlist` (`加入关注清单`) | **Real** | Persists event to server-side `watchlist.json`, broadcasts SSE, re-fetches `GET /api/watchlist`, and updates button state | `POST /api/watchlist` -> `~/.config/huodongxing-cli/watchlist.json` |
+| **Main · Regional Recommend (`#recommend`)** | `[data-testid^="ics-btn-"]` (`下载 .ics`) | **Real** | Downloads single-event RFC 5545 `.ics` file | `GET /api/event/:id/ics` |
+| **Main · Persistent Watchlist (`#watchlist`)** | `#watchlist-add-form` & `#btn-watchlist-add` | **Real** | Validates Event ID/URL and Title (rejects empty/invalid inputs with HTTP 400 error banner), writes to `watchlist.json`, and re-fetches | `POST /api/watchlist` -> `watchlist.json` |
+| **Main · Persistent Watchlist (`#watchlist`)** | `#watchlist-status-tabs` (`关注与待参加` / `已确认参加` / `已归档回收站` / `全部记录`) | **Real** | Filters watchlist items by lifecycle status (`active`, `attending`, `archived`, `all`) with live counters | Derived from `GET /api/watchlist?status=all` |
+| **Main · Persistent Watchlist (`#watchlist`)** | `#wl-search-input` (`搜索已保存的活动/备注`) | **Real** | Filters watchlist cards by title, ID, city, organizer, or operator note | Client filter on `state.watchlistAll` |
+| **Main · Persistent Watchlist (`#watchlist`)** | `#btn-export-watchlist-ics` (`导出关注日历 .ics`) | **Real** | Exports all active watchlisted events to an RFC 5545 `.ics` calendar file | `GET /api/watchlist/ics` |
+| **Main · Persistent Watchlist (`#watchlist`)** | `.wl-priority-select` (`高优 / 中优 / 低优`) | **Real** | Persists updated priority to `watchlist.json`, re-reads from server, and re-sorts cards | `PATCH /api/watchlist/:id` |
+| **Main · Persistent Watchlist (`#watchlist`)** | `.wl-note-input` & `.wl-save-note-btn` (`保存备注`) | **Real** | Persists operator note to `watchlist.json` and re-fetches authoritative state | `PATCH /api/watchlist/:id` |
+| **Main · Persistent Watchlist (`#watchlist`)** | `.wl-status-btn` (`标记参加` / `归档` / `恢复关注`) | **Real** | Transitions item status (`attending`, soft-delete `archived`, restore `saved`), persists to disk, and re-fetches | `PATCH /api/watchlist/:id` |
+| **Main · Persistent Watchlist (`#watchlist`)** | `.wl-delete-btn` (`彻底删除`) | **Real** | Permanently removes archived item from `watchlist.json` and re-fetches | `DELETE /api/watchlist/:id` |
+| **Main · Explore (`#explore`)** | `#explore-subtabs` (`全站优选热度榜` / `精选活动专题` / `活跃主办方名录`) | **Real** | Fetches live Huodongxing ranklist, special topics, or organizers directory | `GET /api/ranklist`, `GET /api/topics`, `GET /api/organizers` |
+| **Main · Explore (`#explore`)** | `#btn-refresh-explore` (`刷新当前榜单`) | **Real** | Forces live re-fetch (`refresh=1`) of the active explore tab | `GET /api/ranklist?refresh=1` |
+| **Main · Diagnose (`#diagnose` — 能读)** | `#btn-reload-config` & `#config-sources-table` | **Real** | Reads effective config, source attribution (`default < config_file < environment < cli_override`), upstream OpenCLI fix status, and security rules | `GET /api/diagnose/config` |
+| **Main · Diagnose (`#diagnose` — 能试)** | `#sample-test-form`, `#btn-run-sample` & `.sample-preset-btn` | **Real** | Executes real `classifySample()` on sample URLs, Event IDs, or city lists (`foshan,guangzhou,shenzhen`), rejecting empty input with HTTP 400 | `POST /api/diagnose/sample` |
+| **Main · Diagnose (`#diagnose` — 能调)** | `#config-edit-form` & `#btn-save-config` | **Real** | Validates (`minIntervalMs` 100–60000, non-empty cities/keywords) and persists operator config to `config.json`, then re-reads from server | `POST /api/diagnose/config` -> `~/.config/huodongxing-cli/config.json` |
+| **Main · Diagnose (`#diagnose` — 能调)** | `#btn-reset-config` (`恢复出厂默认配置`) | **Real** | Removes `config.json` override, restores default values, re-reads from server, and refreshes recommendations | `POST /api/diagnose/config` (`{ reset: true }`) |
+| **Main · Diagnose (`#diagnose` — 对账)** | `#btn-run-reconcile` (`执行契约对账`) | **Real** | Runs `runDiagnosticReconcile()` checking `d=ts` query contract, security denylist rules, and upstream OpenCLI fix | `POST /api/diagnose/reconcile` |
+| **Modal · Event Detail** | `#event-detail-modal`, `#btn-close-modal`, `#modal-download-ics` | **Real** | Displays live ticket tiers (`eventTicketsJson`) and registration form schema (`formItemsJson`), downloads `.ics`, and closes cleanly via button or backdrop | `GET /api/event/:id` & `GET /api/event/:id/ics` |

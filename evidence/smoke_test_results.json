@@ -1,8 +1,8 @@
 {
   "ok": true,
-  "executedAt": "2026-10-14T15:11:35.085Z",
-  "totalSteps": 14,
-  "passedSteps": 14,
+  "executedAt": "2026-10-14T17:40:07.640Z",
+  "totalSteps": 16,
+  "passedSteps": 16,
   "failedSteps": 0,
   "steps": [
     {
@@ -38,7 +38,8 @@
       "ok": true,
       "engine": "opencli",
       "count": 5,
-      "topEventId": "4875910271400"
+      "topEventId": "4875910271400",
+      "topEventTitle": "2026年中国玩博会潮玩汽车模型展"
     },
     {
       "name": "special_topics",
@@ -57,25 +58,27 @@
       "ok": true,
       "engine": "opencli",
       "counts": {
-        "valid": 0,
-        "undone": 0,
-        "cancelled": 0,
+        "valid": 6,
+        "undone": 1,
+        "cancelled": 1,
         "refund": 0
       },
-      "exportedCount": 0,
+      "exportedCount": 8,
       "validIcsHeader": true
     },
     {
       "name": "ticket_detail",
       "ok": true,
-      "skipped": "no_tickets_in_account"
+      "engine": "opencli",
+      "hasQrCodeUrl": true,
+      "hasPdfUrl": true
     },
     {
       "name": "user_favorites_and_following",
       "ok": true,
       "engine": "opencli",
-      "favoritesCount": 4,
-      "followingCount": 20
+      "favoritesCount": 7,
+      "followingCount": 22
     },
     {
       "name": "account_profile_reversible_mutation",
@@ -107,6 +110,25 @@
       "ok": true,
       "dtsQueryRegressionOk": true,
       "upstreamOpencliFixStatus": "repaired"
+    },
+    {
+      "name": "regional_recommendation_foshan_guangzhou_shenzhen",
+      "ok": true,
+      "engine": "opencli",
+      "recommendedCount": 15,
+      "byCityCounts": {
+        "佛山": 16,
+        "广州": 21,
+        "深圳": 22
+      },
+      "topEventTitle": "【佛山站】黑五流量新坐标----2026亚马逊卖家年度增长峰会",
+      "topEventCity": "佛山"
+    },
+    {
+      "name": "web_console_server_and_watchlist_e2e",
+      "ok": true,
+      "savedEventId": "1881947605600",
+      "validWatchlistIcs": true
     }
   ]
 }

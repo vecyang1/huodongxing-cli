@@ -248,7 +248,7 @@ export const CITY_ALIAS_MAP = {
 export const REGION_PRESETS = {
   gba: {
     id: 'gba',
-    label: '广佛深 / 粤港澳大湾区核心 (Foshan · Guangzhou · Shenzhen)',
+    label: '广佛深 · 粤港澳大湾区核心（佛山 · 广州 · 深圳）',
     cities: ['佛山', '广州', '深圳'],
     aliases: [
       'gba',
@@ -267,25 +267,25 @@ export const REGION_PRESETS = {
   },
   'gba-full': {
     id: 'gba-full',
-    label: '粤港澳大湾区全域 (Foshan · Guangzhou · Shenzhen · Dongguan · Zhuhai · HK)',
+    label: '粤港澳大湾区全域（佛山 · 广州 · 深圳 · 东莞 · 珠海 · 香港）',
     cities: ['佛山', '广州', '深圳', '东莞', '珠海', '香港'],
     aliases: ['gba-full', 'gba-all', '大湾区全域'],
   },
   yrd: {
     id: 'yrd',
-    label: '长三角 / 江浙沪 (Shanghai · Hangzhou · Suzhou)',
+    label: '长三角 · 江浙沪（上海 · 杭州 · 苏州）',
     cities: ['上海', '杭州', '苏州'],
     aliases: ['yrd', 'yangtze', '长三角', '江浙沪', '华东'],
   },
   jjj: {
     id: 'jjj',
-    label: '京津冀 (Beijing · Tianjin)',
+    label: '京津冀（北京 · 天津）',
     cities: ['北京', '天津'],
     aliases: ['jjj', 'north', '京津冀', '华北'],
   },
   sw: {
     id: 'sw',
-    label: '成渝双城 (Chengdu · Chongqing)',
+    label: '成渝双城（成都 · 重庆）',
     cities: ['成都', '重庆'],
     aliases: ['sw', 'southwest', '成渝', '川渝', '西南'],
   },
@@ -996,12 +996,19 @@ export function parseTicketsHtml(html, options = {}) {
     { paneId: 'user-ticket-refund', statusKey: 'refund', statusLabel: '退票申请' },
   ];
 
+  const parseCount = (id) => {
+    const m = source.match(new RegExp(`href=["']#${id}["'][^>]*>([\\s\\S]*?<\\/a>)`, 'i'));
+    if (!m) return 0;
+    const num = m[1].match(/\d+/);
+    return num ? Number(num[0]) : 0;
+  };
+
   // Parse tab header counts
   const counts = {
-    valid: Number(source.match(/href=["']#user-ticket-success["'][^>]*>[\s\S]*?<span[^>]*>(\d+)<\/span>/i)?.[1] || 0),
-    undone: Number(source.match(/href=["']#user-ticket-undone["'][^>]*>[\s\S]*?<span[^>]*>(\d+)<\/span>/i)?.[1] || 0),
-    cancelled: Number(source.match(/href=["']#user-ticket-abort["'][^>]*>[\s\S]*?<span[^>]*>(\d+)<\/span>/i)?.[1] || 0),
-    refund: Number(source.match(/href=["']#user-ticket-refund["'][^>]*>[\s\S]*?<span[^>]*>(\d+)<\/span>/i)?.[1] || 0),
+    valid: parseCount('user-ticket-success'),
+    undone: parseCount('user-ticket-undone'),
+    cancelled: parseCount('user-ticket-abort'),
+    refund: parseCount('user-ticket-refund'),
   };
 
   const tickets = [];
@@ -1016,12 +1023,13 @@ export function parseTicketsHtml(html, options = {}) {
     const paneHtml = source.match(paneRegex)?.[1] || '';
     if (!paneHtml) continue;
 
-    const itemBlocks = paneHtml.split(/<li[^>]*>\s*<div[^>]*class=["'][^"']*media[^"']*["'][^>]*>/i).slice(1);
+    const itemBlocks = paneHtml.split(/<li\b[^>]*>/i).slice(1);
     for (const block of itemBlocks) {
       const eventLinkMatch = block.match(/<h3[^>]*>\s*<a[^>]*href=["']([^"']*\/event\/(\d+)[^"']*)["'][^>]*>([\s\S]*?)<\/a>/i);
       const eventUrl = normalizeUrl(eventLinkMatch?.[1] || '');
       const eventId = eventLinkMatch?.[2] || '';
       const eventTitle = cleanText(eventLinkMatch?.[3] || '');
+      if (!eventId && !eventTitle) continue;
 
       const timeMatch = block.match(/<div[^>]*class=["'][^"']*time[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
       const rawTimeText = cleanText(timeMatch?.[1] || '');
@@ -1040,6 +1048,7 @@ export function parseTicketsHtml(html, options = {}) {
       const signupTimeMatch = printHtml.match(/报名时间：([^<]+)/i);
       const timeRangeMatch = printHtml.match(/icon-time[^>]*><\/i>\s*([^<]+)/i);
       const venueMatch = printHtml.match(/icon-place[^>]*><\/i>\s*([^<]+)/i);
+      const printParagraphs = [...printHtml.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)].map((m) => cleanText(m[1]));
 
       // Extract table cells inside printHtml or main table
       const printCells = [...printHtml.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map((m) => cleanText(m[1]));
@@ -1052,20 +1061,20 @@ export function parseTicketsHtml(html, options = {}) {
 
       tickets.push({
         rank: tickets.length + 1,
-        ticketNo,
+        ticketNo: ticketNo || printParagraphs[0] || '',
         eventId,
         eventTitle,
         eventTime,
-        timeRange: cleanText(timeRangeMatch?.[1] || eventTime),
+        timeRange: cleanText(timeRangeMatch?.[1] || printParagraphs[1] || eventTime),
         timeBadge,
-        venue: cleanText(venueMatch?.[1] || ''),
-        ticketTitle: printCells[2] || firstRowTds[0] || '免费票',
+        venue: cleanText(venueMatch?.[1] || printParagraphs[2] || ''),
+        ticketTitle: printParagraphs[7] || firstRowTds[0] || printCells[2] || '免费票',
         quantity: Number(firstRowTds[1] || 1),
-        price: printCells[3] || firstRowTds[2] || '免费',
+        price: printParagraphs[6] || firstRowTds[2] || printCells[3] || '免费',
         statusKey: pane.statusKey,
         statusLabel: pane.statusLabel,
-        attendeeName: printCells[0] || '',
-        attendeeContact: printCells[1] || '',
+        attendeeName: printParagraphs[3] || printCells[0] || '',
+        attendeeContact: printParagraphs[4] ? `${printParagraphs[4]} / ${printParagraphs[5] || ''}`.trim() : (printCells[1] || ''),
         signupTime: cleanText(signupTimeMatch?.[1] || ''),
         qrCodeUrl: normalizeUrl(qrMatch?.[1] || ''),
         detailUrl: ticketNo ? `${BASE_ORIGIN}/user/tikcets?tids=${ticketNo}` : '',
@@ -1095,22 +1104,34 @@ export function parseTicketDetailHtml(html, fallbackTid = '') {
   const qrMatch = source.match(/src=["']([^"']*\/qrcode\/[^"']+)["']/i);
   const pdfMatch = source.match(/href=["']([^"']*\/user\/ticket2pdf\?id=[^"']+)["']/i);
 
-  // Extract attendee info fields
+  // Extract attendee info fields from main text or print span
   const nameMatch = source.match(/姓\s*名[：:]\s*([^\s<]+)/i);
   const phoneMatch = source.match(/手\s*机[：:]\s*([^\s<]+)/i);
   const emailMatch = source.match(/邮\s*箱[：:]\s*([^\s<]+)/i);
 
-  const ticketNo = tidMatch?.[1] || fallbackTid;
+  const printSpanMatch = source.match(/<textarea[^>]*id=["']ticket_print_span_\d+["'][^>]*>([\s\S]*?)<\/textarea>/i);
+  const printHtml = printSpanMatch ? decodeHtmlEntities(printSpanMatch[1]) : '';
+  const printParagraphs = [...printHtml.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)].map((m) => cleanText(m[1]));
+  const titleThMatch = printHtml.match(/<th[^>]*>([\s\S]*?)(?:<span|$)/i);
+  const signupTimeMatch = printHtml.match(/报名时间：([^<]+)/i);
+
+  const ticketNo = tidMatch?.[1] || printParagraphs[0] || fallbackTid;
+  const eventTitle = cleanText(eventLinkMatch?.[3] || titleThMatch?.[1] || '');
+
   return {
     ticketNo,
     orderNo: orderMatch?.[1] || '',
-    orderTime: cleanText(orderTimeMatch?.[1] || ''),
+    orderTime: cleanText(orderTimeMatch?.[1] || signupTimeMatch?.[1] || ''),
     eventId: eventLinkMatch?.[2] || '',
-    eventTitle: cleanText(eventLinkMatch?.[3] || ''),
+    eventTitle,
     eventUrl: normalizeUrl(eventLinkMatch?.[1] || ''),
-    attendeeName: cleanText(nameMatch?.[1] || ''),
-    attendeePhone: cleanText(phoneMatch?.[1] || ''),
-    attendeeEmail: cleanText(emailMatch?.[1] || ''),
+    timeRange: printParagraphs[1] || '',
+    venue: printParagraphs[2] || '',
+    ticketTitle: printParagraphs[7] || '免费票',
+    price: printParagraphs[6] || '免费',
+    attendeeName: cleanText(nameMatch?.[1] || printParagraphs[3] || ''),
+    attendeePhone: cleanText(phoneMatch?.[1] || printParagraphs[4] || ''),
+    attendeeEmail: cleanText(emailMatch?.[1] || printParagraphs[5] || ''),
     qrCodeUrl: normalizeUrl(qrMatch?.[1] || ''),
     pdfUrl: normalizeUrl(pdfMatch?.[1] || (ticketNo ? `/user/ticket2pdf?id=${ticketNo}` : '')),
   };

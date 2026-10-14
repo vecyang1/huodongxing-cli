@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "lane": "compact",
+  "authority": {
+    "mode": "repo-first",
+    "designMd": "DESIGN.md",
+    "tokens": "public/styles/tokens.css"
+  },
+  "classified": {
+    "generated": [],
+    "proposals": [],
+    "references": [],
+    "legacy": []
+  },
+  "drift": {
+    "scan": [
+      "public"
+    ],
+    "colors": "warning",
+    "motion": "warning",
+    "allow": [],
+    "tokenNamespaces": [
+      "--color-",
+      "--font-",
+      "--text-",
+      "--spacing-",
+      "--radius-",
+      "--motion-"
+    ]
+  },
+  "sharedComponents": [],
+  "sharedMotion": [],
+  "gates": {
+    "timeoutSeconds": 120,
+    "receiptOutput": "hash-only",
+    "envAllowlist": [],
+    "required": [],
+    "commands": {}
+  }
+}

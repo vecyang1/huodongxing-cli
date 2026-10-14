@@ -26,9 +26,12 @@ export const UPSTREAM_OPENCLI_EVENTS_PATH =
     'events.js'
   );
 
-const CONFIG_OVERRIDE_FILE =
-  process.env.HDX_CONFIG_PATH ||
-  path.join(os.homedir(), '.config', 'huodongxing-cli', 'config.json');
+export function getConfigOverrideFile() {
+  return (
+    process.env.HDX_CONFIG_PATH ||
+    path.join(os.homedir(), '.config', 'huodongxing-cli', 'config.json')
+  );
+}
 
 function redactHome(filePath) {
   const home = os.homedir();
@@ -43,6 +46,7 @@ function redactHome(filePath) {
  * Supports "能读" (inspect current rules & sources) and "能调" (controlled runtime overrides).
  */
 export function resolveRuntimeConfig(cliOverrides = {}) {
+  const configFile = getConfigOverrideFile();
   const defaults = {
     baseUrl: DEFAULT_BASE_URL,
     engine: 'auto',
@@ -58,8 +62,8 @@ export function resolveRuntimeConfig(cliOverrides = {}) {
   let fileConfig = {};
   let fileConfigLoaded = false;
   try {
-    if (fs.existsSync(CONFIG_OVERRIDE_FILE)) {
-      fileConfig = JSON.parse(fs.readFileSync(CONFIG_OVERRIDE_FILE, 'utf8'));
+    if (fs.existsSync(configFile)) {
+      fileConfig = JSON.parse(fs.readFileSync(configFile, 'utf8'));
       fileConfigLoaded = true;
     }
   } catch {
@@ -103,7 +107,7 @@ export function resolveRuntimeConfig(cliOverrides = {}) {
   for (const key of Object.keys(defaults)) {
     if (key in cleanCli) sources[key] = 'cli_override';
     else if (key in envConfig) sources[key] = 'environment';
-    else if (key in fileConfig) sources[key] = `config_file (${redactHome(CONFIG_OVERRIDE_FILE)})`;
+    else if (key in fileConfig) sources[key] = `config_file (${redactHome(configFile)})`;
     else sources[key] = 'default';
   }
 
@@ -112,7 +116,7 @@ export function resolveRuntimeConfig(cliOverrides = {}) {
     version: VERSION,
     license: LICENSE,
     description: DESCRIPTION,
-    configFilePath: redactHome(CONFIG_OVERRIDE_FILE),
+    configFilePath: redactHome(configFile),
     configFileLoaded: fileConfigLoaded,
     effective,
     sources,
@@ -139,10 +143,11 @@ export function resolveRuntimeConfig(cliOverrides = {}) {
  * Save or reset operator-tuned configuration in ~/.config/huodongxing-cli/config.json ("能调").
  */
 export function updateOperatorConfig(updates = {}, { reset = false } = {}) {
-  const dir = path.dirname(CONFIG_OVERRIDE_FILE);
+  const configFile = getConfigOverrideFile();
+  const dir = path.dirname(configFile);
   if (reset) {
-    if (fs.existsSync(CONFIG_OVERRIDE_FILE)) {
-      fs.unlinkSync(CONFIG_OVERRIDE_FILE);
+    if (fs.existsSync(configFile)) {
+      fs.unlinkSync(configFile);
     }
     return resolveRuntimeConfig();
   }
@@ -160,8 +165,8 @@ export function updateOperatorConfig(updates = {}, { reset = false } = {}) {
   ]);
   let existing = {};
   try {
-    if (fs.existsSync(CONFIG_OVERRIDE_FILE)) {
-      existing = JSON.parse(fs.readFileSync(CONFIG_OVERRIDE_FILE, 'utf8'));
+    if (fs.existsSync(configFile)) {
+      existing = JSON.parse(fs.readFileSync(configFile, 'utf8'));
     }
   } catch {
     existing = {};
@@ -172,22 +177,56 @@ export function updateOperatorConfig(updates = {}, { reset = false } = {}) {
     if (!allowedKeys.has(k)) {
       throw new Error(`Unsupported config key: ${k}. Allowed keys: ${Array.from(allowedKeys).join(', ')}`);
     }
-    if (k === 'defaultCities') {
-      next[k] = resolveRegionOrCities({ cities: v }).cities;
-    } else if (k === 'defaultKeywords' && typeof v === 'string') {
-      next[k] = v.split(/[,，、;/|\s]+/).filter(Boolean);
+    if (k === 'minIntervalMs') {
+      const num = Number(v);
+      if (!Number.isFinite(num) || num < 100 || num > 60000) {
+        throw new Error('minIntervalMs must be a number between 100 and 60000');
+      }
+      next[k] = Math.round(num);
+    } else if (k === 'timeoutMs') {
+      const num = Number(v);
+      if (!Number.isFinite(num) || num < 1000 || num > 120000) {
+        throw new Error('timeoutMs must be a number between 1000 and 120000');
+      }
+      next[k] = Math.round(num);
+    } else if (k === 'engine') {
+      const eng = String(v || '').trim().toLowerCase();
+      if (!['auto', 'direct', 'opencli'].includes(eng)) {
+        throw new Error('engine must be one of: auto, direct, opencli');
+      }
+      next[k] = eng;
+    } else if (k === 'defaultCities') {
+      const rawStr = Array.isArray(v) ? v.join(',') : String(v ?? '').trim();
+      if (!rawStr) {
+        throw new Error('defaultCities cannot be empty');
+      }
+      next[k] = resolveRegionOrCities({ cities: rawStr }).cities;
+    } else if (k === 'defaultRegion') {
+      const reg = String(v ?? '').trim();
+      if (!reg) {
+        throw new Error('defaultRegion cannot be empty');
+      }
+      next[k] = reg;
+    } else if (k === 'defaultKeywords') {
+      const kwList = Array.isArray(v)
+        ? v.map((x) => String(x).trim()).filter(Boolean)
+        : String(v ?? '').split(/[,，、;/|\s]+/).map((x) => x.trim()).filter(Boolean);
+      if (kwList.length === 0) {
+        throw new Error('defaultKeywords cannot be empty');
+      }
+      next[k] = kwList;
     } else {
       next[k] = v;
     }
   }
 
   fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(CONFIG_OVERRIDE_FILE, JSON.stringify(next, null, 2) + '\n', 'utf8');
+  fs.writeFileSync(configFile, JSON.stringify(next, null, 2) + '\n', 'utf8');
   return resolveRuntimeConfig();
 }
 
 /**
- * Inspect whether the upstream OpenCLI owner bug (d=ts HTTP 500) is fixed.
+ * Inspect whether the upstream OpenCLI owner bug (d=ts HTTP 500, city normalization, promo filter) is fixed.
  */
 export function checkUpstreamOpencliOwnerFix() {
   try {
@@ -203,11 +242,16 @@ export function checkUpstreamOpencliOwnerFix() {
       content.includes("params.set('d', 'ts');") &&
       !content.includes('dateRange.date || dateRange.dateTo') &&
       !content.includes('args.date || args.dateTo');
+    const cityNormalization = content.includes('normalizeCityName');
+    const promoBannerFilter = content.includes('if (!time && !location) continue');
+    const fixed = !hasUnconditionalDts && cityNormalization && promoBannerFilter;
     return {
       checked: true,
       path: redactHome(UPSTREAM_OPENCLI_EVENTS_PATH),
-      fixed: !hasUnconditionalDts,
-      status: !hasUnconditionalDts ? 'repaired' : 'unpatched_d_ts_bug',
+      fixed,
+      cityNormalization,
+      promoBannerFilter,
+      status: fixed ? 'repaired' : 'unpatched_d_ts_bug',
     };
   } catch (err) {
     return {
