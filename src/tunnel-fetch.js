@@ -149,6 +149,8 @@ export function createProxyFetch(proxyUrlStr) {
   };
 }
 
+import { execFile } from 'node:child_process';
+
 /**
  * Smart resilient fetch: uses proxy if available/configured, falls back to native fetch.
  */
@@ -174,4 +176,96 @@ export async function resilientFetch(targetUrl, init = {}) {
   }
 
   return globalThis.fetch(targetUrl, init);
+}
+
+/**
+ * Automated self-healing Geetest v3 unban solver via ego-browser canvas pixel-diff + CDP mouse drag.
+ * When verify.huodongxing.com/gt3 is triggered, solves the slider in ~4s and restores IP access.
+ * @param {string} [verifyUrl]
+ * @returns {Promise<boolean>}
+ */
+export async function autoUnbanGeetest(verifyUrl = 'https://www.huodongxing.com/events') {
+  const target = verifyUrl && /^https?:\/\//i.test(verifyUrl)
+    ? verifyUrl
+    : 'https://www.huodongxing.com/events';
+
+  const script = `
+    const task = await taskSpace("hdx-auto-unban-" + Date.now());
+    try {
+      const page = task.page("p1");
+      await page.goto(${JSON.stringify(target)}, { waitUntil: "domcontentloaded" });
+      for (let attempt = 0; attempt < 2; attempt++) {
+        for (let i = 0; i < 25; i++) {
+          const state = await page.evaluate(() => {
+            if (!location.hostname.includes("verify.huodongxing.com")) return "unbanned";
+            const btn = document.querySelector("#unbanBtn");
+            if (btn && !btn.classList.contains("loading")) btn.click();
+            const bg = document.querySelector(".geetest_canvas_bg");
+            return bg && bg.width > 0 ? "ready" : "waiting";
+          });
+          if (state === "unbanned") return;
+          if (state === "ready") break;
+          await page.waitForTimeout(300);
+        }
+        await page.waitForTimeout(500);
+        const metrics = await page.evaluate(() => {
+          const bg = document.querySelector(".geetest_canvas_bg");
+          const full = document.querySelector(".geetest_canvas_fullbg");
+          const slice = document.querySelector(".geetest_canvas_slice");
+          const btnEl = document.querySelector(".geetest_slider_button");
+          if (!bg || !full || !slice || !btnEl) return null;
+          const w = bg.width, h = bg.height;
+          const dBg = bg.getContext("2d").getImageData(0, 0, w, h).data;
+          const dFull = full.getContext("2d").getImageData(0, 0, w, h).data;
+          const dSlice = slice.getContext("2d").getImageData(0, 0, w, h).data;
+          let sliceX = 0;
+          for (let x = 0; x < w; x++) {
+            let alpha = 0;
+            for (let y = 0; y < h; y++) if (dSlice[(y * w + x) * 4 + 3] > 128) alpha++;
+            if (alpha > 8) { sliceX = x; break; }
+          }
+          let gapX = -1;
+          for (let x = sliceX + 30; x < w - 20; x++) {
+            let diffPixels = 0;
+            for (let y = 10; y < h - 10; y++) {
+              const i = (y * w + x) * 4;
+              const diff = Math.abs(dBg[i] - dFull[i]) + Math.abs(dBg[i+1] - dFull[i+1]) + Math.abs(dBg[i+2] - dFull[i+2]);
+              if (diff > 90) diffPixels++;
+            }
+            if (diffPixels > 12) { gapX = x; break; }
+          }
+          const r = btnEl.getBoundingClientRect();
+          return { distance: gapX - sliceX, startX: r.left + r.width / 2, startY: r.top + r.height / 2 };
+        });
+        if (metrics && metrics.distance > 0) {
+          const { startX, startY, distance } = metrics;
+          await page.cdp("Input.dispatchMouseEvent", { type: "mouseMoved", x: startX, y: startY });
+          await page.cdp("Input.dispatchMouseEvent", { type: "mousePressed", x: startX, y: startY, button: "left", clickCount: 1 });
+          const steps = 26;
+          for (let s = 1; s <= steps; s++) {
+            const t = s / steps;
+            const ease = 1 - Math.pow(1 - t, 3);
+            const curX = startX + distance * ease;
+            const curY = startY + (s % 2 === 0 ? 1 : -1);
+            await page.waitForTimeout(20);
+            await page.cdp("Input.dispatchMouseEvent", { type: "mouseMoved", x: curX, y: curY, button: "left", buttons: 1 });
+          }
+          await page.waitForTimeout(80);
+          await page.cdp("Input.dispatchMouseEvent", { type: "mouseReleased", x: startX + distance, y: startY, button: "left", clickCount: 1 });
+          await page.waitForTimeout(3000);
+        }
+        const unbanned = await page.evaluate(() => !location.hostname.includes("verify.huodongxing.com"));
+        if (unbanned) break;
+      }
+    } finally {
+      await task.finish({ keep: [] });
+    }
+  `;
+
+  return new Promise((resolve) => {
+    const child = execFile('ego-browser', ['nodejs', '-e', script], { timeout: 25000 }, (err) => {
+      resolve(!err);
+    });
+    child.stdin?.end();
+  });
 }

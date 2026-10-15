@@ -19,6 +19,7 @@ import {
   parseTopicsHtml,
   parseUserStateHtml,
 } from './parsers.js';
+import { autoUnbanGeetest } from './tunnel-fetch.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -129,6 +130,10 @@ export class OpenCliClient {
       const headers = options.headers || {};
       const body = options.body ?? null;
       const script = `(async () => {
+        try {
+          document.cookie = 'HDXWAFID=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; domain=.huodongxing.com';
+          document.cookie = 'HDXWAFID=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+        } catch {}
         const res = await fetch(${JSON.stringify(pathOrUrl)}, {
           method: ${JSON.stringify(method)},
           credentials: 'include',
@@ -143,9 +148,14 @@ export class OpenCliClient {
         return { status: res.status, redirected: false, url: res.url, html };
       })()`;
 
-      const result = await this.evalInBrowser(script);
+      let result = await this.evalInBrowser(script);
       if (!result || typeof result !== 'object') {
         throw new Error(`Empty response from OpenCLI browser fetch for ${pathOrUrl}`);
+      }
+      if (result.redirected && result.status === 302 && !(method === 'POST' && String(pathOrUrl).includes('/profile'))) {
+        // Self-healing Geetest v3 unban via ego-browser + retry
+        await autoUnbanGeetest('https://www.huodongxing.com/events');
+        result = await this.evalInBrowser(script);
       }
       if (result.redirected && result.status === 302) {
         // For POST /profile, a 302 redirect back to /account/profile indicates success!
@@ -217,9 +227,21 @@ export class OpenCliClient {
     return parseFollowingHtml(res.html, options);
   }
 
-  async getProfile() {
+  async getProfile(options = {}) {
+    if (
+      !options.forceRefresh &&
+      this._cachedProfile &&
+      Date.now() - this._cachedProfileAt < 5000
+    ) {
+      return this._cachedProfile;
+    }
     const res = await this.fetchHtml('/account/profile');
-    return parseProfileHtml(res.html);
+    const parsed = parseProfileHtml(res.html);
+    if (parsed && parsed.account) {
+      this._cachedProfile = parsed;
+      this._cachedProfileAt = Date.now();
+    }
+    return parsed;
   }
 
   async getOrganizers(options = {}) {
@@ -339,7 +361,7 @@ export class OpenCliClient {
     });
 
     // Authoritative re-read from server (SSOT unidirectional data flow)
-    const after = await this.getProfile();
+    const after = await this.getProfile({ forceRefresh: true });
     const verified = (
       (changes.brief === undefined || after.brief === String(changes.brief))
       && (changes.nick === undefined || after.nick === String(changes.nick))

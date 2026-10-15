@@ -80,8 +80,8 @@ export class HuodongxingClient {
     }
 
     // auto mode:
-    if (requiresAuth && !this.direct.hasCookie()) {
-      // Try OpenCLI browser bridge first for authenticated endpoints when HDX_COOKIE is not set
+    if (requiresAuth && !this.direct.hasAuthCookie()) {
+      // Try OpenCLI browser bridge first for authenticated endpoints when full auth cookie is not set
       try {
         const data = await this.opencli[methodName](...args);
         return this._tagEngine(data, 'opencli');

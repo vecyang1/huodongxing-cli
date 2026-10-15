@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "executedAt": "2026-10-14T17:40:07.640Z",
+  "executedAt": "2026-10-15T05:21:51.115Z",
   "totalSteps": 16,
   "passedSteps": 16,
   "failedSteps": 0,
@@ -14,14 +14,14 @@
     {
       "name": "public_events_search",
       "ok": true,
-      "engine": "opencli",
+      "engine": "direct",
       "count": 5,
       "sampleEventId": "3880807963600"
     },
     {
       "name": "event_detail_extraction",
       "ok": true,
-      "engine": "opencli",
+      "engine": "direct",
       "eventId": "2871552596500",
       "ticketsCount": 1,
       "formItemsCount": 4,
@@ -30,13 +30,13 @@
     {
       "name": "organizers_directory",
       "ok": true,
-      "engine": "opencli",
+      "engine": "direct",
       "count": 5
     },
     {
       "name": "popularity_ranklist",
       "ok": true,
-      "engine": "opencli",
+      "engine": "direct",
       "count": 5,
       "topEventId": "4875910271400",
       "topEventTitle": "2026年中国玩博会潮玩汽车模型展"
@@ -44,19 +44,19 @@
     {
       "name": "special_topics",
       "ok": true,
-      "engine": "opencli",
+      "engine": "direct",
       "count": 5
     },
     {
       "name": "user_timeline",
       "ok": true,
-      "engine": "opencli",
+      "engine": "direct",
       "count": 0
     },
     {
       "name": "user_tickets_and_ics_export",
       "ok": true,
-      "engine": "opencli",
+      "engine": "direct",
       "counts": {
         "valid": 6,
         "undone": 1,
@@ -69,21 +69,21 @@
     {
       "name": "ticket_detail",
       "ok": true,
-      "engine": "opencli",
+      "engine": "direct",
       "hasQrCodeUrl": true,
       "hasPdfUrl": true
     },
     {
       "name": "user_favorites_and_following",
       "ok": true,
-      "engine": "opencli",
+      "engine": "direct",
       "favoritesCount": 7,
       "followingCount": 22
     },
     {
       "name": "account_profile_reversible_mutation",
       "ok": true,
-      "engine": "opencli",
+      "engine": "direct",
       "dryRunVerified": true,
       "writeVerified": true,
       "revertVerified": true,
@@ -92,7 +92,7 @@
     {
       "name": "organizer_console_home_and_events",
       "ok": true,
-      "engine": "opencli",
+      "engine": "direct",
       "isAuthenticated": true,
       "statusTabsCount": 8,
       "eventsCount": 0
@@ -114,12 +114,12 @@
     {
       "name": "regional_recommendation_foshan_guangzhou_shenzhen",
       "ok": true,
-      "engine": "opencli",
+      "engine": "direct",
       "recommendedCount": 15,
       "byCityCounts": {
-        "佛山": 16,
+        "佛山": 17,
         "广州": 21,
-        "深圳": 22
+        "深圳": 23
       },
       "topEventTitle": "【佛山站】黑五流量新坐标----2026亚马逊卖家年度增长峰会",
       "topEventCity": "佛山"

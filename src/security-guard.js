@@ -154,8 +154,8 @@ export function assertSafeCliAction(command, flags = {}) {
 }
 
 /**
- * Sequential Token-Bucket Request Pacer to stay safely below Huodongxing OpenResty WAF
- * threshold (8 requests / 20s window).
+ * Sequential Token-Bucket & Sliding-Window Request Pacer to stay safely below
+ * Huodongxing OpenResty WAF threshold (8 requests / 20s sliding window).
  */
 export class RequestPacer {
   /**
@@ -165,11 +165,13 @@ export class RequestPacer {
     const parsed = Number(minIntervalMs);
     this.minIntervalMs = Number.isFinite(parsed) && parsed >= 0 ? parsed : 900;
     this.lastRequestAt = 0;
+    this.windowTimestamps = [];
     this._queue = Promise.resolve();
   }
 
   /**
-   * Schedules an async function to run after respecting minIntervalMs spacing.
+   * Schedules an async function to run after respecting minIntervalMs spacing
+   * and the 7-requests-per-21s OpenResty sliding window guard.
    * @template T
    * @param {() => Promise<T>} fn
    * @returns {Promise<T>}

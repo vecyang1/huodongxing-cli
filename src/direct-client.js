@@ -17,7 +17,7 @@ import {
   parseTopicsHtml,
   parseUserStateHtml,
 } from './parsers.js';
-import { resilientFetch } from './tunnel-fetch.js';
+import { resilientFetch, autoUnbanGeetest } from './tunnel-fetch.js';
 
 const DEFAULT_BASE_URL = 'https://www.huodongxing.com';
 const DEFAULT_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36';
@@ -77,6 +77,10 @@ export class DirectClient {
     return Boolean(this.cookie && this.cookie.trim().length > 0);
   }
 
+  hasAuthCookie() {
+    return Boolean(this.cookie && /(?:AccupassWeb|\.ASPXAUTH)=/i.test(this.cookie));
+  }
+
   /**
    * Performs a paced HTTP request after passing pre-socket Security Guard.
    * @param {string} pathOrUrl
@@ -98,11 +102,23 @@ export class DirectClient {
         Referer: `${this.baseUrl}/`,
         ...(options.headers || {}),
       };
+      const stripWafId = (cookieStr) =>
+        sanitizeCookieHeader(cookieStr)
+          .split(';')
+          .map((p) => p.trim())
+          .filter((p) => p && !/^HDXWAFID=/i.test(p))
+          .join('; ');
+
+      this._reqCount = (this._reqCount || 0) + 1;
+      if (this._reqCount % 5 === 0 && this.cookie) {
+        this.cookie = stripWafId(this.cookie);
+      }
+
       if (this.cookie) {
         headers.Cookie = sanitizeCookieHeader(this.cookie);
       }
 
-      const res = await this.fetchImpl(url, {
+      let res = await this.fetchImpl(url, {
         method,
         headers,
         body: options.body ?? undefined,
@@ -117,7 +133,35 @@ export class DirectClient {
         if (wafMatch) this.cookie = sanitizeCookieHeader(wafMatch[0]);
       }
 
-      const location = res.headers?.get?.('location') || '';
+      let location = res.headers?.get?.('location') || '';
+      if (
+        (res.status === 301 || res.status === 302) &&
+        /verify\.huodongxing\.com\/gt3/i.test(location) &&
+        this.fetchImpl === resilientFetch
+      ) {
+        // First strip stale HDXWAFID and retry immediately; if still blocked, run ego-browser Geetest unban
+        this.cookie = stripWafId(this.cookie);
+        if (this.cookie) headers.Cookie = this.cookie;
+        else delete headers.Cookie;
+        res = await this.fetchImpl(url, {
+          method,
+          headers,
+          body: options.body ?? undefined,
+          redirect: 'manual',
+        });
+        location = res.headers?.get?.('location') || '';
+        if ((res.status === 301 || res.status === 302) && /verify\.huodongxing\.com\/gt3/i.test(location)) {
+          await autoUnbanGeetest(location);
+          res = await this.fetchImpl(url, {
+            method,
+            headers,
+            body: options.body ?? undefined,
+            redirect: 'manual',
+          });
+          location = res.headers?.get?.('location') || '';
+        }
+      }
+
       if (res.status === 301 || res.status === 302) {
         if (/verify\.huodongxing\.com\/gt3/i.test(location)) {
           const err = new Error(
@@ -134,6 +178,9 @@ export class DirectClient {
         if (method === 'POST' && String(pathOrUrl).includes('/profile')) {
           return { status: res.status, redirected: true, location, html: '' };
         }
+        const err = new Error(`HTTP_REDIRECT_${res.status}: Route ${pathOrUrl} redirected to ${location || 'unknown'}.`);
+        err.code = `HTTP_REDIRECT_${res.status}`;
+        throw err;
       }
 
       const html = await res.text();
@@ -141,6 +188,12 @@ export class DirectClient {
       if (waf.blocked) {
         const err = new Error(`${waf.code}: ${waf.message}`);
         err.code = waf.code;
+        throw err;
+      }
+
+      if (res.status >= 400) {
+        const err = new Error(`HTTP_${res.status}: Direct HTTP request to ${pathOrUrl} failed with status ${res.status}.`);
+        err.code = `HTTP_${res.status}`;
         throw err;
       }
 
@@ -197,19 +250,41 @@ export class DirectClient {
     return parseTicketDetailHtml(res.html, cleanTid);
   }
 
-  async getFavorites(options = {}) {
+  async _fetchUserFollowsHtml() {
+    if (this._cachedFollowsHtml && Date.now() - this._cachedFollowsAt < 5000) {
+      return this._cachedFollowsHtml;
+    }
     const res = await this.fetchHtml('/user/userfollows');
-    return parseFavoritesHtml(res.html, Number(options.limit || 50));
+    this._cachedFollowsHtml = res.html;
+    this._cachedFollowsAt = Date.now();
+    return res.html;
+  }
+
+  async getFavorites(options = {}) {
+    const html = await this._fetchUserFollowsHtml();
+    return parseFavoritesHtml(html, Number(options.limit || 50));
   }
 
   async getFollowing(options = {}) {
-    const res = await this.fetchHtml('/user/userfollows');
-    return parseFollowingHtml(res.html, options);
+    const html = await this._fetchUserFollowsHtml();
+    return parseFollowingHtml(html, options);
   }
 
-  async getProfile() {
+  async getProfile(options = {}) {
+    if (
+      !options.forceRefresh &&
+      this._cachedProfile &&
+      Date.now() - this._cachedProfileAt < 5000
+    ) {
+      return this._cachedProfile;
+    }
     const res = await this.fetchHtml('/account/profile');
-    return parseProfileHtml(res.html);
+    const parsed = parseProfileHtml(res.html);
+    if (parsed && parsed.account) {
+      this._cachedProfile = parsed;
+      this._cachedProfileAt = Date.now();
+    }
+    return parsed;
   }
 
   async getOrganizers(options = {}) {
@@ -325,7 +400,7 @@ export class DirectClient {
       body: bodyParams.toString(),
     });
 
-    const after = await this.getProfile();
+    const after = await this.getProfile({ forceRefresh: true });
     const verified = (
       (changes.brief === undefined || after.brief === String(changes.brief))
       && (changes.nick === undefined || after.nick === String(changes.nick))
