@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "executedAt": "2026-10-15T09:28:25.556Z",
+  "executedAt": "2026-10-15T09:51:01.357Z",
   "totalSteps": 16,
   "passedSteps": 16,
   "failedSteps": 0,
@@ -8,8 +8,8 @@
     {
       "name": "status_probe",
       "ok": true,
-      "activeEngine": "opencli",
-      "authenticated": true
+      "activeEngine": "auto",
+      "authenticated": false
     },
     {
       "name": "public_events_search",

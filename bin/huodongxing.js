@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import path from 'node:path';
 import {
   VERSION,
   PACKAGE_NAME,
@@ -489,7 +490,16 @@ async function main() {
       throw new Error(`Unknown command '${command}'. Run 'huodongxing --help' for usage.`);
   }
 
-  process.stdout.write(`${formatOutput(result, format, preferredColumns)}\n`);
+  const formatted = formatOutput(result, format, preferredColumns);
+  if (flags.output || flags.o) {
+    const outFile = path.resolve(process.cwd(), String(flags.output || flags.o));
+    const parentDir = path.dirname(outFile);
+    if (!fs.existsSync(parentDir)) {
+      fs.mkdirSync(parentDir, { recursive: true });
+    }
+    fs.writeFileSync(outFile, formatted, 'utf8');
+  }
+  process.stdout.write(`${formatted}\n`);
 }
 
 main().catch((err) => {

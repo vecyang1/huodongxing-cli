@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { cleanText, resolveRegionOrCities, dateOrdinal, parseEventTimeRange } from './parsers.js';
+import { cleanText, resolveRegionOrCities, dateOrdinal, parseEventTimeRange, normalizeCityName } from './parsers.js';
 
 /**
  * Focus Domain Taxonomy for Domestic Ecosystem Intelligence
@@ -266,13 +266,14 @@ export async function generateEcosystemDigest(client, options = {}) {
   const allEvents = [];
 
   // 1. First run broad regional recommendation with combined high-value keywords
-  const broadKeywords = ['跨境', '出海', 'AI', '短剧', '漫剧', '智能体', '基础设施'];
+  const broadKeywords = ['跨境', '出海', 'AI', '短剧', '漫剧', '智能体', '基础设施', 'SaaS'];
   try {
     const recRes = await client.recommendEvents({
       cities,
       keywords: broadKeywords,
-      limit: Math.max(Number(options.limit || 30), 20),
+      limit: Math.max(Number(options.limit || 50), 30),
       upcomingOnly: options.upcomingOnly !== false,
+      perCityLimit: 12,
     });
     for (const item of recRes.items || []) {
       if (item?.id && !seenEventIds.has(item.id)) {
@@ -284,32 +285,31 @@ export async function generateEcosystemDigest(client, options = {}) {
     // Graceful fallback if recommend fails
   }
 
-  // 2. Targeted multi-facet search per domain keyword across target cities
-  for (const domain of ECOSYSTEM_DOMAINS) {
-    for (const kw of domain.keywords.slice(0, 2)) {
-      for (const targetCity of cities) {
-        try {
-          const searchRes = await client.searchEvents({
-            city: targetCity,
-            keyword: kw,
-            upcomingOnly: options.upcomingOnly !== false,
-            limit: 8,
-          });
-          for (const item of searchRes.items || []) {
-            if (item?.id && !seenEventIds.has(item.id)) {
-              seenEventIds.add(item.id);
-              allEvents.push(item);
-            }
+  // 2. High-value targeted domain sweeps across primary regional cities (bounded to prevent rate limiting)
+  const targetedKeywords = ['短剧', '漫剧', '智能体', '出海'];
+  for (const kw of targetedKeywords) {
+    for (const targetCity of cities.slice(0, 3)) {
+      try {
+        const searchRes = await client.searchEvents({
+          city: targetCity,
+          keyword: kw,
+          upcomingOnly: options.upcomingOnly !== false,
+          limit: 6,
+        });
+        for (const item of searchRes.items || []) {
+          if (item?.id && !seenEventIds.has(item.id)) {
+            seenEventIds.add(item.id);
+            allEvents.push(item);
           }
-        } catch (err) {
-          // Continue across other keywords and cities
         }
+      } catch (err) {
+        // Continue across other keywords and cities
       }
     }
   }
 
-  // 2b. Nationwide & regional online events sweep (webinars, livestreams, remote forums)
-  const onlineKeywords = ['跨境', '出海', 'AI', '短剧', '漫剧', '智能体', 'SaaS', 'OPC'];
+  // 2b. Nationwide online/webinar events sweep (webinars, livestreams, remote forums)
+  const onlineKeywords = ['AI', '出海', '智能体', '短剧'];
   for (const kw of onlineKeywords) {
     try {
       const searchRes = await client.searchEvents({
@@ -411,7 +411,8 @@ export async function generateEcosystemDigest(client, options = {}) {
   const byCityCounts = {};
   for (const c of cities) byCityCounts[c] = 0;
   for (const ev of activeEvents) {
-    const c = ev.matchedCity || ev.city;
+    const rawCity = ev.matchedCity || ev.city;
+    const c = normalizeCityName(rawCity);
     if (c && byCityCounts[c] !== undefined) {
       byCityCounts[c]++;
     }

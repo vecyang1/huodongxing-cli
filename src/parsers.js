@@ -319,13 +319,19 @@ export const DEFAULT_RECOMMEND_KEYWORDS = [
 export function normalizeCityName(input) {
   const raw = cleanText(input);
   if (!raw) return '全部';
-  const lower = raw.toLowerCase();
+  const stripped = raw.replace(/^(?:广东|北京|上海|浙江|江苏|四川|湖北|陕西|山东|福建|天津|重庆)(?:省|市)?/, '');
+  const candidate = stripped || raw;
+  const lower = candidate.toLowerCase();
   if (CITY_ALIAS_MAP[lower]) return CITY_ALIAS_MAP[lower];
+  if (CITY_ALIAS_MAP[candidate]) return CITY_ALIAS_MAP[candidate];
+  if (CITY_ALIAS_MAP[raw.toLowerCase()]) return CITY_ALIAS_MAP[raw.toLowerCase()];
   if (CITY_ALIAS_MAP[raw]) return CITY_ALIAS_MAP[raw];
-  if (raw.length >= 3 && raw.endsWith('市')) {
-    return raw.slice(0, -1);
+  if (candidate.length >= 3 && candidate.endsWith('市')) {
+    const withoutShi = candidate.slice(0, -1);
+    if (CITY_ALIAS_MAP[withoutShi]) return CITY_ALIAS_MAP[withoutShi];
+    return withoutShi;
   }
-  return raw;
+  return candidate;
 }
 
 function findRegionPreset(token) {
