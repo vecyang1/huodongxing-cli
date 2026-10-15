@@ -69,7 +69,7 @@ export class OpenCliClient {
   async checkSessionStatus() {
     try {
       const info = await this.evalInBrowser(
-        '({ href: location.href, origin: location.origin, title: document.title, hasCookies: document.cookie.includes("HDXWAFID") || document.cookie.includes("uid") })',
+        '({ href: location.href, origin: location.origin, title: document.title, hasCookies: (() => { try { return Boolean(document.cookie && (document.cookie.includes("HDXWAFID") || document.cookie.includes("uid"))); } catch { return false; } })() })',
       );
       const onDomain = Boolean(info && typeof info.origin === 'string' && info.origin.includes('huodongxing.com'));
       return {
@@ -95,9 +95,13 @@ export class OpenCliClient {
    */
   async extractBrowserCookies() {
     const status = await this.checkSessionStatus();
-    if (!status.available) return '';
-    const cookieStr = await this.evalInBrowser('document.cookie');
-    return typeof cookieStr === 'string' ? cookieStr : '';
+    if (!status.available || !status.onDomain) return '';
+    try {
+      const cookieStr = await this.evalInBrowser('(() => { try { return document.cookie || ""; } catch { return ""; } })()');
+      return typeof cookieStr === 'string' ? cookieStr : '';
+    } catch {
+      return '';
+    }
   }
 
   /**

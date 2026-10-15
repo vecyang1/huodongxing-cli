@@ -7,6 +7,7 @@ import {
   buildEventsUrl,
   REGION_PRESETS,
   DEFAULT_RECOMMEND_KEYWORDS,
+  isCityOrRegionInput,
   resolveRegionOrCities,
 } from './parsers.js';
 
@@ -69,6 +70,9 @@ export function resolveRuntimeConfig(cliOverrides = {}) {
   } catch {
     fileConfig = {};
   }
+  if (fileConfig.defaultRegion && !fileConfig.defaultCities) {
+    fileConfig.defaultCities = resolveRegionOrCities({ region: fileConfig.defaultRegion }).cities;
+  }
 
   const envConfig = {};
   if (process.env.HDX_BASE_URL) envConfig.baseUrl = process.env.HDX_BASE_URL;
@@ -77,7 +81,12 @@ export function resolveRuntimeConfig(cliOverrides = {}) {
   if (process.env.HDX_MIN_INTERVAL_MS) envConfig.minIntervalMs = Number(process.env.HDX_MIN_INTERVAL_MS);
   if (process.env.HDX_TIMEOUT_MS) envConfig.timeoutMs = Number(process.env.HDX_TIMEOUT_MS);
   if (process.env.HDX_DEFAULT_EVENT_ID) envConfig.defaultEventId = process.env.HDX_DEFAULT_EVENT_ID;
-  if (process.env.HDX_DEFAULT_REGION) envConfig.defaultRegion = process.env.HDX_DEFAULT_REGION;
+  if (process.env.HDX_DEFAULT_REGION) {
+    envConfig.defaultRegion = process.env.HDX_DEFAULT_REGION;
+    if (!process.env.HDX_DEFAULT_CITIES) {
+      envConfig.defaultCities = resolveRegionOrCities({ region: process.env.HDX_DEFAULT_REGION }).cities;
+    }
+  }
   if (process.env.HDX_DEFAULT_CITIES) {
     envConfig.defaultCities = resolveRegionOrCities({ cities: process.env.HDX_DEFAULT_CITIES }).cities;
   }
@@ -88,6 +97,9 @@ export function resolveRuntimeConfig(cliOverrides = {}) {
   const cleanCli = Object.fromEntries(
     Object.entries(cliOverrides).filter(([, v]) => v !== undefined && v !== null && v !== '')
   );
+  if (cleanCli.defaultRegion && !cleanCli.defaultCities) {
+    cleanCli.defaultCities = resolveRegionOrCities({ region: cleanCli.defaultRegion }).cities;
+  }
 
   const effective = {
     ...defaults,
@@ -207,6 +219,9 @@ export function updateOperatorConfig(updates = {}, { reset = false } = {}) {
         throw new Error('defaultRegion cannot be empty');
       }
       next[k] = reg;
+      if (!('defaultCities' in updates)) {
+        next.defaultCities = resolveRegionOrCities({ region: reg }).cities;
+      }
     } else if (k === 'defaultKeywords') {
       const kwList = Array.isArray(v)
         ? v.map((x) => String(x).trim()).filter(Boolean)
@@ -221,7 +236,9 @@ export function updateOperatorConfig(updates = {}, { reset = false } = {}) {
   }
 
   fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(configFile, JSON.stringify(next, null, 2) + '\n', 'utf8');
+  const tmpFile = `${configFile}.tmp.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2, 8)}`;
+  fs.writeFileSync(tmpFile, JSON.stringify(next, null, 2) + '\n', 'utf8');
+  fs.renameSync(tmpFile, configFile);
   return resolveRuntimeConfig();
 }
 
@@ -277,18 +294,23 @@ export function classifySample(sampleInput, options = {}) {
   }
 
   const config = resolveRuntimeConfig(options).effective;
-  const regionResolution = resolveRegionOrCities({ cities: raw }, config.defaultCities);
+  const isCityOrRegion = !/^https?:\/\//i.test(raw) && !raw.startsWith('/') && !/^\d{6,20}$/.test(raw) && isCityOrRegionInput(raw);
+  const regionResolution = isCityOrRegion
+    ? resolveRegionOrCities({ cities: raw }, config.defaultCities)
+    : resolveRegionOrCities({}, config.defaultCities);
 
   let normalizedUrl = raw;
-  if (/^\d{10,16}$/.test(raw)) {
+  let candidateUrls = null;
+  if (/^\d{6,20}$/.test(raw)) {
     normalizedUrl = `${config.baseUrl}/event/${raw}`;
   } else if (raw.startsWith('/')) {
     normalizedUrl = `${config.baseUrl}${raw}`;
   } else if (!/^https?:\/\//i.test(raw)) {
-    if (regionResolution.cities.length === 1 && regionResolution.cities[0] !== '全部') {
+    if (isCityOrRegion) {
       normalizedUrl = buildEventsUrl({ city: regionResolution.cities[0] });
+      candidateUrls = regionResolution.cities.map((c) => buildEventsUrl({ city: c }));
     } else {
-      normalizedUrl = `${config.baseUrl}/events?keyword=${encodeURIComponent(raw)}`;
+      normalizedUrl = buildEventsUrl({ city: '全部', qs: raw });
     }
   }
 
@@ -428,6 +450,7 @@ export function classifySample(sampleInput, options = {}) {
     input: raw,
     method,
     normalizedUrl,
+    ...(candidateUrls ? { candidateUrls } : {}),
     pathname,
     query: Object.fromEntries(parsedUrl.searchParams.entries()),
     regionResolution,
@@ -464,8 +487,16 @@ export async function runDiagnosticReconcile(client, options = {}) {
   const datedSearchUrl = buildEventsUrl({ keyword: 'AI', date: '2026-10-01', dateTo: '2026-10-31' });
   const dtsContractOk = !defaultSearchUrl.includes('d=ts') && datedSearchUrl.includes('d=ts');
 
+  const multiCityCheck = classifySample('foshan,guangzhou,shenzhen');
+  const keywordCheck = classifySample('AI智能体峰会');
   const sampleChecks = {
     eventDetailAllowed: classifySample('2871552596500').securityVerdict.allowed === true,
+    multiCitySampleResolved:
+      multiCityCheck.query.city === '佛山' &&
+      Array.isArray(multiCityCheck.candidateUrls) &&
+      multiCityCheck.candidateUrls.length === 3,
+    keywordSampleResolved:
+      keywordCheck.query.qs === 'AI智能体峰会' && keywordCheck.query.city === '全部',
     cashierBlocked: classifySample('https://www.huodongxing.com/payment/cashier?order=1', { method: 'POST' }).securityVerdict.allowed === false,
     pwdBlocked: classifySample('https://www.huodongxing.com/account/pwd', { method: 'POST' }).securityVerdict.allowed === false,
     refundBlocked: classifySample('https://www.huodongxing.com/order/refund', { method: 'POST' }).securityVerdict.allowed === false,
@@ -497,6 +528,8 @@ export async function runDiagnosticReconcile(client, options = {}) {
   const allStaticPassed =
     dtsContractOk &&
     sampleChecks.eventDetailAllowed &&
+    sampleChecks.multiCitySampleResolved &&
+    sampleChecks.keywordSampleResolved &&
     sampleChecks.cashierBlocked &&
     sampleChecks.pwdBlocked &&
     sampleChecks.refundBlocked;

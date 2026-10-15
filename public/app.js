@@ -1028,8 +1028,12 @@ function bindEvents() {
   if (sampleForm) {
     sampleForm.addEventListener('submit', (e) => {
       e.preventDefault();
-      const s = document.getElementById('sample-input')?.value || '';
+      const s = (document.getElementById('sample-input')?.value || '').trim();
       const m = document.getElementById('sample-method')?.value || 'GET';
+      if (!s) {
+        showBanner(document.getElementById('sample-error-banner'), '请输入要测试的样本链接、活动 ID 或城市/区域名称', 'error');
+        return;
+      }
       runSampleTest(s, m);
     });
   }

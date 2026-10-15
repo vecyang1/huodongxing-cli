@@ -340,11 +340,70 @@ function findRegionPreset(token) {
 }
 
 /**
- * Resolves `--region`, `--cities`, or `--city` into a canonical deduplicated city list and metadata.
+ * Checks whether a single token is a recognized city alias, canonical Chinese city, or region preset.
+ */
+export function isKnownCityOrRegionToken(token) {
+  const raw = cleanText(token);
+  if (!raw) return false;
+  const lower = raw.toLowerCase();
+  if (findRegionPreset(raw)) return true;
+  if (CITY_ALIAS_MAP[lower] || CITY_ALIAS_MAP[raw]) return true;
+  if (raw.length >= 3 && raw.endsWith('市')) {
+    const stripped = raw.slice(0, -1);
+    if (CITY_ALIAS_MAP[stripped] || /^[\u4e00-\u9fa5]{2,4}$/.test(stripped)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Checks whether an input string (single token or comma-separated list) represents cities/regions
+ * rather than a free-text search keyword.
+ */
+export function isCityOrRegionInput(input) {
+  const raw = cleanText(input);
+  if (!raw) return false;
+  if (findRegionPreset(raw)) return true;
+  const tokens = raw
+    .split(/[,，、;/|\s]+/)
+    .map((t) => cleanText(t))
+    .filter(Boolean);
+  if (tokens.length === 0) return false;
+  return tokens.every((tok) => isKnownCityOrRegionToken(tok));
+}
+
+/**
+ * Resolves `--cities`, `--city`, or `--region` into a canonical deduplicated city list and metadata.
+ * Explicit `cities` / `city` takes precedence over `region` preset when both are provided.
  */
 export function resolveRegionOrCities(options = {}, fallbackCities = ['佛山', '广州', '深圳']) {
   const rawRegion = options.region;
   const rawCities = options.cities ?? options.city;
+
+  if (rawCities !== undefined && rawCities !== null && cleanText(Array.isArray(rawCities) ? rawCities.join(',') : rawCities) !== '') {
+    const tokens = Array.isArray(rawCities)
+      ? rawCities.flatMap((c) => String(c).split(/[,，、;/|\s]+/))
+      : String(rawCities).split(/[,，、;/|\s]+/);
+    const expanded = [];
+    for (const tok of tokens.map((t) => cleanText(t)).filter(Boolean)) {
+      const p = findRegionPreset(tok);
+      if (p) expanded.push(...p.cities);
+      else expanded.push(normalizeCityName(tok));
+    }
+    const deduped = Array.from(new Set(expanded.filter(Boolean)));
+    if (deduped.length > 0) {
+      return {
+        regionId: deduped.join(',') === '佛山,广州,深圳' ? 'gba' : 'custom_cities',
+        regionLabel:
+          deduped.join(',') === '佛山,广州,深圳'
+            ? REGION_PRESETS.gba.label
+            : `指定城市群 (${deduped.join(' · ')})`,
+        cities: deduped,
+        source: 'cli_cities',
+      };
+    }
+  }
 
   if (rawRegion && typeof rawRegion === 'string' && cleanText(rawRegion)) {
     const preset = findRegionPreset(rawRegion);
@@ -373,30 +432,6 @@ export function resolveRegionOrCities(options = {}, fallbackCities = ['佛山', 
         regionLabel: `自定义区域 (${deduped.join(' · ')})`,
         cities: deduped,
         source: 'cli_region_list',
-      };
-    }
-  }
-
-  if (rawCities !== undefined && rawCities !== null && rawCities !== '') {
-    const tokens = Array.isArray(rawCities)
-      ? rawCities.flatMap((c) => String(c).split(/[,，、;/|\s]+/))
-      : String(rawCities).split(/[,，、;/|\s]+/);
-    const expanded = [];
-    for (const tok of tokens.map((t) => cleanText(t)).filter(Boolean)) {
-      const p = findRegionPreset(tok);
-      if (p) expanded.push(...p.cities);
-      else expanded.push(normalizeCityName(tok));
-    }
-    const deduped = Array.from(new Set(expanded.filter(Boolean)));
-    if (deduped.length > 0) {
-      return {
-        regionId: deduped.join(',') === '佛山,广州,深圳' ? 'gba' : 'custom_cities',
-        regionLabel:
-          deduped.join(',') === '佛山,广州,深圳'
-            ? REGION_PRESETS.gba.label
-            : `指定城市群 (${deduped.join(' · ')})`,
-        cities: deduped,
-        source: 'cli_cities',
       };
     }
   }
@@ -478,8 +513,12 @@ function parseMonthDayToken(token, year) {
 }
 
 export function parseEventTimeRange(timeText, options = {}) {
-  const text = cleanText(timeText);
-  if (!text) return null;
+  const rawText = cleanText(timeText);
+  if (!rawText) return null;
+  const text = rawText
+    .replace(/(\d{4})[年.](\d{1,2})[月.](\d{1,2})日?/g, '$1/$2/$3')
+    .replace(/(\d{1,2})月(\d{1,2})日?/g, '$1/$2')
+    .replace(/(\d{1,2})\.(\d{1,2})/g, '$1/$2');
   const filterStart = parseYmd(options.date);
   const referenceDate = options.referenceDate instanceof Date ? options.referenceDate : new Date();
   const referenceOrdinal = dateOrdinal(
@@ -491,21 +530,26 @@ export function parseEventTimeRange(timeText, options = {}) {
   if (/明天/.test(text)) return { start: referenceOrdinal + 1, end: referenceOrdinal + 1, referenceOrdinal };
   if (/后天/.test(text)) return { start: referenceOrdinal + 2, end: referenceOrdinal + 2, referenceOrdinal };
 
+  const explicitYearMatch = text.match(/(\d{4})[/-]\d{1,2}[/-]\d{1,2}/);
   const baseYear = options.year ?? (
-    cleanText(options.date).match(/^(\d{4})-/)?.[1]
-      ? Number(cleanText(options.date).slice(0, 4))
-      : referenceDate.getFullYear()
+    explicitYearMatch
+      ? Number(explicitYearMatch[1])
+      : cleanText(options.date).match(/^(\d{4})-/)?.[1]
+        ? Number(cleanText(options.date).slice(0, 4))
+        : referenceDate.getFullYear()
   );
-  const tokens = Array.from(text.matchAll(/(\d{1,2}[/-]\d{1,2})/g)).map((m) => m[1]);
+  const strippedYearText = text.replace(/\b\d{4}[/-]/g, '');
+  const tokens = Array.from(strippedYearText.matchAll(/(\d{1,2}[/-]\d{1,2})/g)).map((m) => m[1]);
   if (tokens.length === 0) return null;
   let start = parseMonthDayToken(tokens[0], baseYear);
   if (!start) return null;
-  if (referenceDate.getMonth() + 1 >= 10 && start.month <= 2 && !options.year) {
+  if (!explicitYearMatch && referenceDate.getMonth() + 1 >= 10 && start.month <= 2 && !options.year) {
     start = parseMonthDayToken(tokens[0], baseYear + 1) || start;
   }
   if (tokens.length === 1) return { start: start.ordinal, end: start.ordinal, referenceOrdinal };
-  const startYear = Math.floor((start.ordinal * 86400000) / (365.2425 * 86400000)) + 1970;
-  const effectiveStartYear = referenceDate.getMonth() + 1 >= 10 && start.month <= 2 ? baseYear + 1 : baseYear;
+  const effectiveStartYear = !explicitYearMatch && referenceDate.getMonth() + 1 >= 10 && start.month <= 2
+    ? baseYear + 1
+    : baseYear;
   const endYear = parseMonthDayToken(tokens[1], effectiveStartYear)?.month < start.month
     ? effectiveStartYear + 1
     : effectiveStartYear;

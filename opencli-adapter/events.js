@@ -88,7 +88,7 @@ function localDateOrdinal(date) {
 }
 
 function parseMonthDayToken(token, year) {
-  const match = cleanText(token).match(/(\d{1,2})\/(\d{1,2})/);
+  const match = cleanText(token).match(/(\d{1,2})[/-](\d{1,2})/);
   if (!match) return null;
   return {
     month: Number(match[1]),
@@ -98,27 +98,42 @@ function parseMonthDayToken(token, year) {
 }
 
 function parseEventTimeRange(timeText, options = {}) {
-  const text = cleanText(timeText);
-  if (!text) return null;
+  const rawText = cleanText(timeText);
+  if (!rawText) return null;
+  const text = rawText
+    .replace(/(\d{4})[年.](\d{1,2})[月.](\d{1,2})日?/g, '$1/$2/$3')
+    .replace(/(\d{1,2})月(\d{1,2})日?/g, '$1/$2')
+    .replace(/(\d{1,2})\.(\d{1,2})/g, '$1/$2');
   const filterStart = parseYmd(options.date);
-  const filterEnd = parseYmd(options.dateTo) ?? filterStart;
   const referenceDate = options.referenceDate instanceof Date ? options.referenceDate : new Date();
   const referenceOrdinal = localDateOrdinal(referenceDate);
   if (/今天/.test(text)) return { start: referenceOrdinal, end: referenceOrdinal };
   if (/明天/.test(text)) return { start: referenceOrdinal + 1, end: referenceOrdinal + 1 };
   if (/后天/.test(text)) return { start: referenceOrdinal + 2, end: referenceOrdinal + 2 };
 
+  const explicitYearMatch = text.match(/(\d{4})[/-]\d{1,2}[/-]\d{1,2}/);
   const baseYear = options.year ?? (
-    cleanText(options.date).match(/^(\d{4})-/)?.[1]
-      ? Number(cleanText(options.date).slice(0, 4))
-      : referenceDate.getFullYear()
+    explicitYearMatch
+      ? Number(explicitYearMatch[1])
+      : cleanText(options.date).match(/^(\d{4})-/)?.[1]
+        ? Number(cleanText(options.date).slice(0, 4))
+        : referenceDate.getFullYear()
   );
-  const tokens = Array.from(text.matchAll(/(\d{1,2}\/\d{1,2})/g)).map((match) => match[1]);
+  const strippedYearText = text.replace(/\b\d{4}[/-]/g, '');
+  const tokens = Array.from(strippedYearText.matchAll(/(\d{1,2}[/-]\d{1,2})/g)).map((match) => match[1]);
   if (tokens.length === 0) return null;
-  const start = parseMonthDayToken(tokens[0], baseYear);
+  let start = parseMonthDayToken(tokens[0], baseYear);
   if (!start) return null;
+  if (!explicitYearMatch && referenceDate.getMonth() + 1 >= 10 && start.month <= 2 && !options.year) {
+    start = parseMonthDayToken(tokens[0], baseYear + 1) || start;
+  }
   if (tokens.length === 1) return { start: start.ordinal, end: start.ordinal };
-  const endYear = parseMonthDayToken(tokens[1], baseYear)?.month < start.month ? baseYear + 1 : baseYear;
+  const effectiveStartYear = !explicitYearMatch && referenceDate.getMonth() + 1 >= 10 && start.month <= 2
+    ? baseYear + 1
+    : baseYear;
+  const endYear = parseMonthDayToken(tokens[1], effectiveStartYear)?.month < start.month
+    ? effectiveStartYear + 1
+    : effectiveStartYear;
   const end = parseMonthDayToken(tokens[1], endYear);
   if (!end) return { start: start.ordinal, end: start.ordinal };
 
@@ -251,7 +266,7 @@ export function normalizeCityName(input) {
 }
 
 export function resolveCitiesList(args = {}) {
-  const raw = cleanText(args.region || args.cities || args.city || '全部');
+  const raw = cleanText(args.cities || args.region || args.city || '全部');
   const lower = raw.toLowerCase();
   if (REGION_PRESETS[lower] || REGION_PRESETS[raw]) {
     return [...(REGION_PRESETS[lower] || REGION_PRESETS[raw])];

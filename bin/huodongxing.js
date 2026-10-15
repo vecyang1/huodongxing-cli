@@ -81,6 +81,7 @@ Usage:
   hdx <command> [arguments] [options]
 
 Commands (Public Discovery & Regional Recommendation):
+  digest                  Multi-domain ecosystem radar (cross-border, AI, short drama, infra, apps) (--city, --cities, --output, --limit)
   recommend               Smart regional event recommendations (defaults to 佛山·广州·深圳 / --region gba; supports --region, --cities, --keywords, --limit)
   events                  Search & filter public events (supports --keyword, --city, --cities, --region, --upcoming-only, --tag, --orderby, --date, --date-to, --page, --limit)
   detail <eventId>        Inspect event detail, inline ticket tiers, and registration form schema
@@ -157,6 +158,22 @@ async function main() {
   switch (command) {
     case 'status': {
       result = await client.status();
+      break;
+    }
+
+    case 'digest':
+    case 'ecosystem-digest': {
+      result = await client.ecosystemDigest({
+        city: flags.city || positional[1] || '深圳',
+        cities: flags.cities || '',
+        limit: Number(flags.limit || 30),
+        upcomingOnly: !flags['include-past'],
+        output: flags.output || flags.o || '',
+      });
+      if (format === 'md') {
+        process.stdout.write(`${result.markdown}\n`);
+        return;
+      }
       break;
     }
 

@@ -170,7 +170,7 @@ test('Browser E2E (ego-browser): full user journeys, invalid inputs, reload pers
 
   const egoScript = `
     const fs = await import("node:fs");
-    const task = await taskSpace("hdx-automated-e2e-suite");
+    const task = await taskSpace("hdx-e2e-" + Date.now());
     try {
       const page = task.page("p1");
       await page.cdp("Emulation.setDeviceMetricsOverride", {
@@ -244,8 +244,7 @@ test('Browser E2E (ego-browser): full user journeys, invalid inputs, reload pers
       // 能试: Empty sample validation
       await page.evaluate(() => { document.getElementById("sample-input").value = ""; });
       await page.click("#btn-run-sample", { label: "Run empty sample test" });
-      const sampleErrVisible = await page.evaluate(() => document.getElementById("sample-error-banner")?.classList.contains("visible"));
-      if (!sampleErrVisible) throw new Error("Expected empty sample input error banner");
+      await page.waitForFunction(() => document.getElementById("sample-error-banner")?.classList.contains("visible"), undefined, { timeout: 5000 });
 
       // 能试: Blocked cashier preset
       await page.click('[data-testid="preset-cashier"]', { label: "Test cashier block preset" });

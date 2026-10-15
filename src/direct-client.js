@@ -17,6 +17,7 @@ import {
   parseTopicsHtml,
   parseUserStateHtml,
 } from './parsers.js';
+import { resilientFetch } from './tunnel-fetch.js';
 
 const DEFAULT_BASE_URL = 'https://www.huodongxing.com';
 const DEFAULT_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36';
@@ -38,7 +39,7 @@ export class DirectClient {
     this.baseUrl = (options.baseUrl || process.env.HDX_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, '');
     this.cookie = options.cookie ?? process.env.HDX_COOKIE ?? '';
     this.userAgent = options.userAgent || process.env.HDX_USER_AGENT || DEFAULT_UA;
-    this.fetchImpl = options.fetchImpl || globalThis.fetch;
+    this.fetchImpl = options.fetchImpl || resilientFetch;
     this.pacer = options.pacer instanceof RequestPacer
       ? options.pacer
       : new RequestPacer(options.minIntervalMs ?? process.env.HDX_MIN_INTERVAL_MS ?? 900);
@@ -85,7 +86,8 @@ export class DirectClient {
       });
 
       // Capture Set-Cookie if HDXWAFID is issued
-      const setCookie = res.headers?.get?.('set-cookie') || '';
+      const rawSetCookie = res.headers?.get?.('set-cookie');
+      const setCookie = Array.isArray(rawSetCookie) ? rawSetCookie.join('; ') : String(rawSetCookie || '');
       if (!this.cookie && setCookie) {
         const wafMatch = setCookie.match(/HDXWAFID=[^;]+/);
         if (wafMatch) this.cookie = wafMatch[0];

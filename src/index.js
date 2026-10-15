@@ -30,6 +30,13 @@ import {
 } from './watchlist-store.js';
 import { createConsoleServer } from './server.js';
 import { formatOutput, toCsv, toMarkdownTable, toTerminalTable } from './formatters.js';
+import {
+  ECOSYSTEM_DOMAINS,
+  classifyEventDomains,
+  extractTechSignals,
+  buildEcosystemDigestMarkdown,
+  generateEcosystemDigest,
+} from './ecosystem-digest.js';
 
 /**
  * Dual-Engine Huodongxing (活动行) Client.
@@ -41,6 +48,7 @@ import { formatOutput, toCsv, toMarkdownTable, toTerminalTable } from './formatt
  */
 export class HuodongxingClient {
   constructor(options = {}) {
+    this.initOptions = options;
     this.configState = resolveRuntimeConfig(options);
     const resolved = this.configState.effective;
     this.engine = String(options.engine || resolved.engine || 'auto').toLowerCase();
@@ -144,6 +152,7 @@ export class HuodongxingClient {
   }
 
   async searchEvents(args = {}) {
+    this.configState = resolveRuntimeConfig(this.initOptions);
     const hasRegionOrMultiCity =
       Boolean(args.region) ||
       Boolean(args.cities) ||
@@ -215,6 +224,7 @@ export class HuodongxingClient {
    * theme keywords, time proximity, and offline presence.
    */
   async recommendEvents(options = {}) {
+    this.configState = resolveRuntimeConfig(this.initOptions);
     const resolvedRegion = parsers.resolveRegionOrCities(
       {
         ...options,
@@ -267,7 +277,7 @@ export class HuodongxingClient {
       keywords,
       upcomingOnly,
       limit: Number(options.limit || 20),
-      perCityLimit: Number(options.perCityLimit || 8),
+      perCityLimit: Number(options.perCityLimit || 20),
       referenceDate: options.referenceDate,
     });
 
@@ -352,6 +362,13 @@ export class HuodongxingClient {
       ics,
     };
   }
+
+  /**
+   * Generates a multi-domain ecosystem intelligence digest (cross-border, AI, short drama, infra, apps).
+   */
+  async ecosystemDigest(options = {}) {
+    return generateEcosystemDigest(this, options);
+  }
 }
 
 export {
@@ -389,4 +406,9 @@ export {
   toCsv,
   toMarkdownTable,
   toTerminalTable,
+  ECOSYSTEM_DOMAINS,
+  classifyEventDomains,
+  extractTechSignals,
+  buildEcosystemDigestMarkdown,
+  generateEcosystemDigest,
 };
