@@ -2,6 +2,19 @@
 
 All notable changes to `huodongxing-cli` are documented in this file.
 
+## [1.2.1] - 2026-10-15
+
+### Added
+- **Deterministic Year & Weekday Reconciliation (`src/parsers.js`)**:
+  - Eliminated false future-year guessing on historical event cards (which omitted Gregorian years in Huodongxing search cards).
+  - Mathematical weekday alignment (`周[日一二三四五六]`) resolves historical Gregorian years across a 5-year candidate window.
+  - Title anchor extraction for historical year markers (`2022`, `2023`, etc.).
+  - Explicit `isExpired` filtering in `filterRowsByDateRange`, `scoreAndRankRegionalEvents`, and `generateEcosystemDigest`.
+- **Online Attendance & Remote Webinar Track (`src/ecosystem-digest.js`)**:
+  - Automatically isolates and flags all online/hybrid webinars (腾讯会议、视频号直播、双线接入) for remote operators.
+- **Quad-City Radar Defaults (`深圳, 广州, 佛山, 上海`)**:
+  - Native cross-regional coverage across Greater Bay Area and Yangtze River Delta tech hubs.
+
 ## [1.2.0] - 2026-10-15
 
 ### Added

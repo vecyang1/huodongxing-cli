@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { cleanText, resolveRegionOrCities } from './parsers.js';
+import { cleanText, resolveRegionOrCities, dateOrdinal, parseEventTimeRange } from './parsers.js';
 
 /**
  * Focus Domain Taxonomy for Domestic Ecosystem Intelligence
@@ -340,7 +340,25 @@ export async function generateEcosystemDigest(client, options = {}) {
   const signalCounts = {};
   const onlineEvents = [];
 
+  const referenceDate = options.referenceDate instanceof Date ? options.referenceDate : new Date();
+  const todayOrdinal = dateOrdinal(
+    referenceDate.getFullYear(),
+    referenceDate.getMonth() + 1,
+    referenceDate.getDate(),
+  );
+
+  const activeEvents = [];
   for (const ev of allEvents) {
+    if (options.upcomingOnly !== false) {
+      const timeRange = parseEventTimeRange(ev.time, { referenceDate, title: ev.title });
+      if (timeRange && timeRange.end < todayOrdinal) {
+        continue;
+      }
+    }
+    activeEvents.push(ev);
+  }
+
+  for (const ev of activeEvents) {
     const matchedDomains = classifyEventDomains(ev);
     const signals = extractTechSignals(`${ev.title} ${ev.organizer}`);
     const onlineInfo = evaluateOnlineAttendance(ev);
@@ -392,7 +410,7 @@ export async function generateEcosystemDigest(client, options = {}) {
 
   const byCityCounts = {};
   for (const c of cities) byCityCounts[c] = 0;
-  for (const ev of allEvents) {
+  for (const ev of activeEvents) {
     const c = ev.matchedCity || ev.city;
     if (c && byCityCounts[c] !== undefined) {
       byCityCounts[c]++;
@@ -407,9 +425,9 @@ export async function generateEcosystemDigest(client, options = {}) {
   };
 
   const stats = {
-    totalUniqueEvents: allEvents.length,
+    totalUniqueEvents: activeEvents.length,
     onlineAttendanceCount: onlineEvents.length,
-    offlineAttendanceCount: Math.max(allEvents.length - onlineEvents.length, 0),
+    offlineAttendanceCount: Math.max(activeEvents.length - onlineEvents.length, 0),
     byDomain: Object.fromEntries(
       Object.entries(domainGroups).map(([k, v]) => [k, v.length])
     ),
@@ -437,11 +455,11 @@ export async function generateEcosystemDigest(client, options = {}) {
   return {
     metadata,
     stats,
+    allEvents: options.onlineOnly ? onlineEvents : activeEvents,
     onlineEvents,
     topOrganizers,
     topSignals,
     domainGroups,
-    allEvents: options.onlineOnly ? onlineEvents : allEvents,
     markdown,
   };
 }

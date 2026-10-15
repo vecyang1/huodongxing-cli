@@ -8,6 +8,7 @@ import {
   generateEcosystemDigest,
   evaluateOnlineAttendance,
 } from '../src/ecosystem-digest.js';
+import { parseEventTimeRange } from '../src/parsers.js';
 
 test('ECOSYSTEM_DOMAINS covers all 5 core tracks', () => {
   const ids = ECOSYSTEM_DOMAINS.map((d) => d.id);
@@ -191,3 +192,111 @@ test('generateEcosystemDigest defaults to 4 core cities (深圳, 广州, 佛山,
   assert.ok(digest.stats.byCityCounts['深圳'] === 0);
   assert.ok(digest.stats.byCityCounts['上海'] === 0);
 });
+
+test('parseEventTimeRange accurately deduces years via weekday reconciliation and filters past events', () => {
+  const refDate = new Date(2026, 9, 15); // 2026-10-15
+
+  // 1. Past event from 2023: 02/17 周五 (in 2026/2027, 02/17 was/is Wednesday; in 2023 it was Friday)
+  const pastCcbec = parseEventTimeRange('02/17 周五 15:00', { referenceDate: refDate });
+  assert.equal(pastCcbec.isExpired, true);
+  assert.ok(pastCcbec.end < pastCcbec.referenceOrdinal);
+
+  // 2. Past event with explicit past year in title: 2023招商政策线上峰会
+  const past2023 = parseEventTimeRange('12/21 周三 11:30', {
+    referenceDate: refDate,
+    title: '【跨境电商】2023年跨境平台招商政策解读线上峰会',
+  });
+  assert.equal(past2023.isExpired, true);
+
+  // 3. Past event from 2022 with title: 2022年海外动荡
+  const past2022 = parseEventTimeRange('12/14 周三 14:00', {
+    referenceDate: refDate,
+    title: '【跨境出海】2022年海外动荡，跨境卖家应如何应对？',
+  });
+  assert.equal(past2022.isExpired, true);
+
+  // 4. Past date range from 2023: 05/11 周四 ~ 05/23 周二
+  const pastRange = parseEventTimeRange('05/11 周四 ~ 05/23 周二', { referenceDate: refDate });
+  assert.equal(pastRange.isExpired, true);
+
+  // 5. Valid upcoming events in 2026
+  const upcoming1 = parseEventTimeRange('09/23 周三 ~ 10/22 周四', { referenceDate: refDate });
+  assert.equal(upcoming1.isExpired, false);
+
+  const upcoming2 = parseEventTimeRange('10/22（周四）13:30–18:00', { referenceDate: refDate });
+  assert.equal(upcoming2.isExpired, false);
+
+  const upcomingToday = parseEventTimeRange('今天 09:00', { referenceDate: refDate });
+  assert.equal(upcomingToday.isExpired, false);
+
+  const upcomingTomorrow = parseEventTimeRange('明天 14:00', { referenceDate: refDate });
+  assert.equal(upcomingTomorrow.isExpired, false);
+});
+
+test('generateEcosystemDigest strictly filters out expired events across recommend and search channels', async () => {
+  const refDate = new Date(2026, 9, 15);
+  const mockClient = {
+    async recommendEvents() {
+      return {
+        items: [
+          {
+            id: 'past-1',
+            title: '【跨境电商】2023年跨境平台招商政策解读线上峰会',
+            time: '12/21 周三 11:30',
+            eventType: 'online',
+            location: '线上活动',
+            organizer: '雨果跨境',
+            url: 'https://www.huodongxing.com/event/past-1',
+          },
+          {
+            id: 'upcoming-1',
+            title: '【佛山站】黑五流量新坐标——2026亚马逊卖家年度增长峰会',
+            time: '10/22 周四 13:30',
+            eventType: 'offline',
+            location: '佛山南海',
+            organizer: '亚马逊卖家沙龙',
+            url: 'https://www.huodongxing.com/event/upcoming-1',
+          },
+        ],
+      };
+    },
+    async searchEvents() {
+      return {
+        items: [
+          {
+            id: 'past-2',
+            title: 'CCBEC跨境云讲坛——跨境电商加油站',
+            time: '02/17 周五 15:00',
+            eventType: 'online',
+            location: '线上活动',
+            organizer: 'CCBEC组委会',
+            url: 'https://www.huodongxing.com/event/past-2',
+          },
+          {
+            id: 'upcoming-2',
+            title: 'AI智能体与漫剧出海线上研讨会',
+            time: '10/28 周三 14:00',
+            eventType: 'online',
+            location: '线上活动',
+            organizer: 'AI开放平台',
+            url: 'https://www.huodongxing.com/event/upcoming-2',
+          },
+        ],
+      };
+    },
+  };
+
+  const digest = await generateEcosystemDigest(mockClient, {
+    referenceDate: refDate,
+    upcomingOnly: true,
+  });
+
+  // Both past-1 and past-2 must be eliminated!
+  const eventIds = digest.allEvents.map((e) => e.id);
+  assert.ok(!eventIds.includes('past-1'), 'past-1 (2023峰会) must be filtered out');
+  assert.ok(!eventIds.includes('past-2'), 'past-2 (2023 CCBEC) must be filtered out');
+  assert.ok(eventIds.includes('upcoming-1'), 'upcoming-1 must be present');
+  assert.ok(eventIds.includes('upcoming-2'), 'upcoming-2 must be present');
+  assert.equal(digest.stats.totalUniqueEvents, 2);
+});
+

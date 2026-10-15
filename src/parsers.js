@@ -122,7 +122,7 @@ export function extractJsVarString(html, varName) {
   return match ? match[2] : '';
 }
 
-function dateOrdinal(year, month, day) {
+export function dateOrdinal(year, month, day) {
   return Math.floor(Date.UTC(year, month - 1, day) / 86400000);
 }
 
@@ -495,6 +495,12 @@ export function buildEventsUrl(args = {}) {
   }
   const keyword = cleanText(args.qs ?? args.keyword ?? '');
   if (keyword) params.set('qs', keyword);
+  const status = cleanText(args.status);
+  if (status) {
+    params.set('status', status);
+  } else if (args.upcomingOnly) {
+    params.set('status', '1');
+  }
   const page = Number(args.page || 1);
   if (Number.isInteger(page) && page > 1) {
     params.set('page', String(page));
@@ -512,6 +518,16 @@ function parseMonthDayToken(token, year) {
   };
 }
 
+const WEEKDAY_INDEX = {
+  '周日': 0, '周天': 0, '星期日': 0, '星期天': 0,
+  '周一': 1, '星期一': 1,
+  '周二': 2, '星期二': 2,
+  '周三': 3, '星期三': 3,
+  '周四': 4, '星期四': 4,
+  '周五': 5, '星期五': 5,
+  '周六': 6, '星期六': 6,
+};
+
 export function parseEventTimeRange(timeText, options = {}) {
   const rawText = cleanText(timeText);
   if (!rawText) return null;
@@ -519,52 +535,108 @@ export function parseEventTimeRange(timeText, options = {}) {
     .replace(/(\d{4})[年.](\d{1,2})[月.](\d{1,2})日?/g, '$1/$2/$3')
     .replace(/(\d{1,2})月(\d{1,2})日?/g, '$1/$2')
     .replace(/(\d{1,2})\.(\d{1,2})/g, '$1/$2');
+
   const filterStart = parseYmd(options.date);
+  const filterEnd = parseYmd(options.dateTo) ?? filterStart;
   const referenceDate = options.referenceDate instanceof Date ? options.referenceDate : new Date();
+  const curYear = referenceDate.getFullYear();
+  const curMonth = referenceDate.getMonth() + 1;
   const referenceOrdinal = dateOrdinal(
-    referenceDate.getFullYear(),
-    referenceDate.getMonth() + 1,
+    curYear,
+    curMonth,
     referenceDate.getDate(),
   );
-  if (/今天/.test(text)) return { start: referenceOrdinal, end: referenceOrdinal, referenceOrdinal };
-  if (/明天/.test(text)) return { start: referenceOrdinal + 1, end: referenceOrdinal + 1, referenceOrdinal };
-  if (/后天/.test(text)) return { start: referenceOrdinal + 2, end: referenceOrdinal + 2, referenceOrdinal };
 
-  const explicitYearMatch = text.match(/(\d{4})[/-]\d{1,2}[/-]\d{1,2}/);
-  const baseYear = options.year ?? (
-    explicitYearMatch
-      ? Number(explicitYearMatch[1])
-      : cleanText(options.date).match(/^(\d{4})-/)?.[1]
-        ? Number(cleanText(options.date).slice(0, 4))
-        : referenceDate.getFullYear()
-  );
-  const strippedYearText = text.replace(/\b\d{4}[/-]/g, '');
-  const tokens = Array.from(strippedYearText.matchAll(/(\d{1,2}[/-]\d{1,2})/g)).map((m) => m[1]);
-  if (tokens.length === 0) return null;
-  let start = parseMonthDayToken(tokens[0], baseYear);
-  if (!start) return null;
-  if (!explicitYearMatch && referenceDate.getMonth() + 1 >= 10 && start.month <= 2 && !options.year) {
-    start = parseMonthDayToken(tokens[0], baseYear + 1) || start;
-  }
-  if (tokens.length === 1) return { start: start.ordinal, end: start.ordinal, referenceOrdinal };
-  const effectiveStartYear = !explicitYearMatch && referenceDate.getMonth() + 1 >= 10 && start.month <= 2
-    ? baseYear + 1
-    : baseYear;
-  const endYear = parseMonthDayToken(tokens[1], effectiveStartYear)?.month < start.month
-    ? effectiveStartYear + 1
-    : effectiveStartYear;
-  const end = parseMonthDayToken(tokens[1], endYear);
-  if (!end) return { start: start.ordinal, end: start.ordinal, referenceOrdinal };
+  if (/今天/.test(text)) return { start: referenceOrdinal, end: referenceOrdinal, referenceOrdinal, isExpired: false };
+  if (/明天/.test(text)) return { start: referenceOrdinal + 1, end: referenceOrdinal + 1, referenceOrdinal, isExpired: false };
+  if (/后天/.test(text)) return { start: referenceOrdinal + 2, end: referenceOrdinal + 2, referenceOrdinal, isExpired: false };
 
-  if (filterStart != null && end.ordinal < filterStart && start.month >= 10) {
-    const nextStart = parseMonthDayToken(tokens[0], baseYear + 1);
-    const nextEndYear = parseMonthDayToken(tokens[1], baseYear + 1)?.month < nextStart.month
-      ? baseYear + 2
-      : baseYear + 1;
-    const nextEnd = parseMonthDayToken(tokens[1], nextEndYear);
-    if (nextStart && nextEnd) return { start: nextStart.ordinal, end: nextEnd.ordinal, referenceOrdinal };
+  const explicitYearInTime = text.match(/(\d{4})[/-]\d{1,2}[/-]\d{1,2}/);
+  const explicitYearInTitle = cleanText(options.title || '').match(/(\b|【|\[|\s)(201\d|202\d)年?/);
+  const explicitYear = explicitYearInTime
+    ? Number(explicitYearInTime[1])
+    : explicitYearInTitle
+      ? Number(explicitYearInTitle[2])
+      : options.year != null
+        ? Number(options.year)
+        : cleanText(options.date).match(/^(\d{4})-/)?.[1]
+          ? Number(cleanText(options.date).slice(0, 4))
+          : null;
+
+  const baseYear = explicitYear || curYear;
+
+  const tokenRegex = /(?:(\d{4})[/-])?(\d{1,2})[/-](\d{1,2})(?:\s*[(（]?\s*([周星期][日天一二三四五六])\s*[)）]?)?/g;
+  const matches = Array.from(text.matchAll(tokenRegex));
+  if (matches.length === 0) return null;
+
+  const parsedTokens = [];
+  for (const m of matches) {
+    const tokenYear = m[1] ? Number(m[1]) : explicitYear;
+    const month = Number(m[2]);
+    const day = Number(m[3]);
+    const weekdayStr = m[4];
+    const targetW = weekdayStr ? WEEKDAY_INDEX[weekdayStr] : null;
+
+    let resolvedYear = tokenYear;
+    if (!resolvedYear && targetW != null) {
+      const candidates = [curYear, curYear + 1, curYear - 1, curYear - 2, curYear - 3, curYear - 4, curYear - 5];
+      for (const candY of candidates) {
+        if (new Date(candY, month - 1, day).getDay() === targetW) {
+          resolvedYear = candY;
+          break;
+        }
+      }
+    }
+
+    if (!resolvedYear) {
+      if (!explicitYear && curMonth >= 10 && month <= 2 && options.year == null) {
+        resolvedYear = curYear + 1;
+      } else {
+        resolvedYear = baseYear;
+      }
+    }
+
+    parsedTokens.push({
+      year: resolvedYear,
+      month,
+      day,
+      ordinal: dateOrdinal(resolvedYear, month, day),
+    });
   }
-  return { start: start.ordinal, end: end.ordinal, referenceOrdinal };
+
+  const startToken = parsedTokens[0];
+  let endToken = parsedTokens[parsedTokens.length - 1];
+
+  if (parsedTokens.length > 1 && endToken.month < startToken.month && endToken.year <= startToken.year) {
+    const nextY = startToken.year + 1;
+    endToken = {
+      ...endToken,
+      year: nextY,
+      ordinal: dateOrdinal(nextY, endToken.month, endToken.day),
+    };
+  }
+
+  if (filterStart != null && endToken.ordinal < filterStart && startToken.month >= 10 && !explicitYear) {
+    const nextStartYear = baseYear + 1;
+    const nextEndYear = endToken.month < startToken.month ? nextStartYear + 1 : nextStartYear;
+    const nextStartOrd = dateOrdinal(nextStartYear, startToken.month, startToken.day);
+    const nextEndOrd = dateOrdinal(nextEndYear, endToken.month, endToken.day);
+    return {
+      start: nextStartOrd,
+      end: nextEndOrd,
+      referenceOrdinal,
+      isExpired: nextEndOrd < referenceOrdinal,
+    };
+  }
+
+  const start = startToken.ordinal;
+  const end = endToken.ordinal;
+  return {
+    start,
+    end,
+    referenceOrdinal,
+    isExpired: end < referenceOrdinal,
+  };
 }
 
 export function filterRowsByDateRange(rows, options = {}) {
@@ -585,7 +657,7 @@ export function filterRowsByDateRange(rows, options = {}) {
   const start = filterStart ?? filterEnd;
   const end = filterEnd ?? filterStart;
   const filtered = rows.filter((row) => {
-    const range = parseEventTimeRange(row.time, options);
+    const range = parseEventTimeRange(row.time, { ...options, title: row.title, referenceDate });
     if (!range) return !upcomingOnly;
     if (upcomingOnly && range.end < todayOrdinal) {
       return false;
@@ -744,7 +816,7 @@ export function scoreAndRankRegionalEvents(rawItemsByCity = {}, options = {}) {
 
     for (const item of cityItems) {
       if (!item || !item.id) continue;
-      const range = parseEventTimeRange(item.time, { referenceDate });
+      const range = parseEventTimeRange(item.time, { ...options, referenceDate, title: item.title });
       if (upcomingOnly && range && range.end < todayOrdinal) {
         pastFilteredOut += 1;
         continue;

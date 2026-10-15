@@ -1,6 +1,6 @@
 {
   "name": "huodongxing-cli",
-  "version": "1.2.0",
+  "version": "1.2.1",
     "description": "Agentic CLI, JavaScript SDK, OpenCLI adapter suite, and Web Inspector Console for Huodongxing (活动行) multi-city recommendations (深圳·广州·佛山·上海), ecosystem radar, watchlist SSOT, ticket passes, iCal export, attendee center, and organizer console automation",
   "type": "module",
   "main": "src/index.js",

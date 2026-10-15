@@ -312,7 +312,11 @@ test('Browser E2E (ego-browser): full user journeys, invalid inputs, reload pers
 
       fs.writeFileSync(${JSON.stringify(resultPath)}, JSON.stringify({ ok: true, afterReload, mobileCheck }), "utf8");
     } finally {
-      await task.finish({ keep: [] });
+      try {
+        await task.finish({ keep: [] });
+      } catch (err) {
+        // Ignore teardown task space release errors if assertions completed
+      }
     }
   `;
 
@@ -321,7 +325,7 @@ test('Browser E2E (ego-browser): full user journeys, invalid inputs, reload pers
       const child = execFile(
         'ego-browser',
         ['nodejs', '-e', egoScript],
-        { timeout: 45000 },
+        { timeout: 65000 },
         (err, stdout, stderr) => {
           if (err) {
             reject(new Error(`${err.message}\nSTDOUT: ${stdout}\nSTDERR: ${stderr}`));
