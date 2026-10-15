@@ -2,6 +2,21 @@ import http from 'node:http';
 import https from 'node:https';
 import tls from 'node:tls';
 import net from 'node:net';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { execFile } from 'node:child_process';
+
+/**
+ * Resolves the canonical path to ultra-low-cost-scraper's scraper_cli.py.
+ * @returns {string}
+ */
+export function getUlcsScraperCliPath() {
+  return (
+    process.env.ULCS_SCRAPER_CLI ||
+    path.join(os.homedir(), '.agents', 'skills', 'ultra-low-cost-scraper', 'scripts', 'scraper_cli.py')
+  );
+}
 
 /**
  * Probes if a local TCP port is accepting connections within a short timeout.
@@ -149,7 +164,109 @@ export function createProxyFetch(proxyUrlStr) {
   };
 }
 
-import { execFile } from 'node:child_process';
+/**
+ * Executes a request via ultra-low-cost-scraper (`scraper_cli.py fetch`) using `curl_cffi`
+ * browser TLS impersonation (`chrome120`) and optional residential proxy fallback.
+ * @param {string} targetUrl
+ * @param {Object} [init={}]
+ * @param {Object} [options={}]
+ * @param {boolean} [options.direct=true] - Try direct curl_cffi TLS impersonation first; if false, use residential proxy
+ * @param {string} [options.impersonate='chrome120']
+ * @param {Function} [options.execFileImpl]
+ * @returns {Promise<Object|null>}
+ */
+export async function ulcsFetch(targetUrl, init = {}, options = {}) {
+  const cliPath = options.scraperCliPath || getUlcsScraperCliPath();
+  if (!options.execFileImpl && !fs.existsSync(cliPath)) {
+    return null;
+  }
+
+  const runOnce = (useDirect) =>
+    new Promise((resolve) => {
+      const args = [cliPath, 'fetch'];
+      if (useDirect) args.push('--direct');
+      args.push('--impersonate', options.impersonate || 'chrome120');
+      args.push('--timeout', String(options.timeoutSec || 18));
+
+      const method = String(init.method || 'GET').toUpperCase();
+      args.push('--method', method);
+
+      const headers = init.headers || {};
+      const cookieVal = headers.Cookie || headers.cookie || '';
+      if (cookieVal) {
+        args.push('--cookie', String(cookieVal));
+      }
+      for (const [k, v] of Object.entries(headers)) {
+        if (/^(cookie|user-agent|host)$/i.test(k) || v == null) continue;
+        args.push('--header', `${k}: ${v}`);
+      }
+      if (init.body != null && String(init.body).length > 0) {
+        args.push('--data', String(init.body));
+      }
+      args.push(targetUrl);
+
+      const runner = options.execFileImpl || execFile;
+      const child = runner(
+        'python3',
+        args,
+        { timeout: (options.timeoutSec || 18) * 1000 + 4000, maxBuffer: 16 * 1024 * 1024 },
+        (err, stdout) => {
+          const raw = String(stdout || '').trim();
+          if (!raw) {
+            return resolve(null);
+          }
+          try {
+            const parsed = JSON.parse(raw);
+            const status = Number(parsed.status || (err ? 500 : 200));
+            const bodyText = String(parsed.body ?? '');
+            resolve({
+              status,
+              statusText: status === 200 ? 'OK' : '',
+              ok: status >= 200 && status < 300,
+              url: parsed.url || targetUrl,
+              via: useDirect ? 'ulcs-direct-tls' : 'ulcs-proxy-tunnel',
+              headers: {
+                get(key) {
+                  const k = String(key).toLowerCase();
+                  if (k === 'location') return parsed.headers?.location || parsed.headers?.Location || null;
+                  if (k === 'set-cookie') return parsed.headers?.['set-cookie'] || parsed.headers?.['Set-Cookie'] || null;
+                  return parsed.headers?.[key] || parsed.headers?.[k] || null;
+                },
+              },
+              text: () => Promise.resolve(bodyText),
+              json: () => Promise.resolve(JSON.parse(bodyText)),
+            });
+          } catch {
+            resolve(null);
+          }
+        },
+      );
+      child?.stdin?.end?.();
+    });
+
+  // Tier 1: Direct curl_cffi TLS impersonation ($0 cost)
+  if (options.direct !== false) {
+    const directRes = await runOnce(true);
+    if (
+      directRes &&
+      directRes.status >= 200 &&
+      directRes.status < 300 &&
+      !/verify\.huodongxing\.com\/gt3|哎呀，访问太快了|系统需要确认你是真人/i.test(await directRes.text())
+    ) {
+      return directRes;
+    }
+  }
+
+  // Tier 2: Residential proxy tunnel via ultra-low-cost-scraper
+  if (options.allowProxyFallback !== false) {
+    const proxyRes = await runOnce(false);
+    if (proxyRes && proxyRes.status >= 200 && proxyRes.status < 400) {
+      return proxyRes;
+    }
+  }
+
+  return null;
+}
 
 /**
  * Smart resilient fetch: uses proxy if available/configured, falls back to native fetch.

@@ -5,15 +5,26 @@ All notable changes to `huodongxing-cli` are documented in this file.
 ## [1.2.1] - 2026-10-15
 
 ### Added
-- **Deterministic Year & Weekday Reconciliation (`src/parsers.js`)**:
+- **Deterministic Year & Weekday Reconciliation (`src/parsers.js` & `opencli-adapter/events.js`)**:
   - Eliminated false future-year guessing on historical event cards (which omitted Gregorian years in Huodongxing search cards).
   - Mathematical weekday alignment (`周[日一二三四五六]`) resolves historical Gregorian years across a 5-year candidate window.
   - Title anchor extraction for historical year markers (`2022`, `2023`, etc.).
   - Explicit `isExpired` filtering in `filterRowsByDateRange`, `scoreAndRankRegionalEvents`, and `generateEcosystemDigest`.
-- **Online Attendance & Remote Webinar Track (`src/ecosystem-digest.js`)**:
-  - Automatically isolates and flags all online/hybrid webinars (腾讯会议、视频号直播、双线接入) for remote operators.
-- **Quad-City Radar Defaults (`深圳, 广州, 佛山, 上海`)**:
-  - Native cross-regional coverage across Greater Bay Area and Yangtze River Delta tech hubs.
+  - Automatic `status=1` upstream query parameter when `upcomingOnly` is enabled so Huodongxing returns active upcoming events instead of expired historical listings.
+- **Anti-WAF Tiered Self-Healing (`src/tunnel-fetch.js` & `src/direct-client.js`)**:
+  - Integrated `ultra-low-cost-scraper` (`scraper_cli.py` `curl_cffi` Chrome 120 TLS fingerprint impersonation `--direct` first, followed by residential proxy tunnel fallback) when `DirectClient` encounters HTTP `403`/`429`/`503`, HTML WAF robot checks, or `301/302` Geetest redirects (`verify.huodongxing.com/gt3`), before falling back to `ego-browser` Geetest auto-unban.
+- **Online Attendance & Remote Webinar Track (`src/ecosystem-digest.js` & `opencli-adapter/digest.js`)**:
+  - Automatically isolates and flags all online/hybrid webinars (腾讯会议、视频号直播、双线接入) for remote operators, exposed via `hdx digest`, `GET /api/digest`, and `opencli huodongxing digest`.
+- **Quad-City Radar Defaults (`深圳, 广州, 佛山, 上海`) & Web Console Historical Toggle (`#rec-include-past`)**:
+  - Native cross-regional coverage across Greater Bay Area and Yangtze River Delta tech hubs, plus interactive `#rec-include-past` ("含历史活动") checkbox in the Web Console (`public/index.html`, `public/app.js`).
+- **SDK `WatchlistStore` Class & CLI `watchlist archive/restore`**:
+  - Exported `WatchlistStore` class and `archiveWatchlistItem` / `restoreWatchlistItem` helpers from `src/index.js` and added `hdx watchlist archive <id>` / `restore <id>` CLI subcommands.
+
+### Fixed
+- **OpenCLI Adapter Discovery & Dual-Resolution (`opencli-adapter/_shared.js` & `~/.opencli/clis/huodongxing`)**:
+  - Replaced broken symlink with a real directory under `~/.opencli/clis/huodongxing/` and added dual-resolution (`../src/index.js` or `huodongxing-cli`) so `opencli validate huodongxing` discovers and validates all **15** commands with `0` errors and `0` warnings.
+- **HTTP 413 Oversized Body Guard & Concurrent Watchlist Write Safety (`src/server.js`, `src/watchlist-store.js`, `src/ics.js`)**:
+  - `readJsonBody` now returns a clean `413 PAYLOAD_TOO_LARGE` JSON response without resetting the client socket; `writeRawStore` uses unique per-write temporary filenames; and `parseTicketDateRange` supports explicit 4-digit years and Chinese date delimiters (`年/月/日`) across year boundaries.
 
 ## [1.2.0] - 2026-10-15
 

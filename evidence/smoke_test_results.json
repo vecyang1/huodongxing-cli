@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "executedAt": "2026-10-15T09:51:01.357Z",
+  "executedAt": "2026-10-15T10:18:10.727Z",
   "totalSteps": 16,
   "passedSteps": 16,
   "failedSteps": 0,
@@ -8,8 +8,8 @@
     {
       "name": "status_probe",
       "ok": true,
-      "activeEngine": "auto",
-      "authenticated": false
+      "activeEngine": "opencli",
+      "authenticated": true
     },
     {
       "name": "public_events_search",
@@ -118,8 +118,8 @@
       "recommendedCount": 15,
       "byCityCounts": {
         "佛山": 17,
-        "广州": 22,
-        "深圳": 22
+        "广州": 21,
+        "深圳": 23
       },
       "topEventTitle": "【佛山站】黑五流量新坐标----2026亚马逊卖家年度增长峰会",
       "topEventCity": "佛山"

@@ -441,6 +441,12 @@ async function main() {
           note: flags.note,
           title: flags.title,
         });
+      } else if (sub === 'archive') {
+        const targetId = positional[2] || flags.id || flags['event-id'];
+        result = updateWatchlistItem(targetId, { status: 'archived' });
+      } else if (sub === 'restore') {
+        const targetId = positional[2] || flags.id || flags['event-id'];
+        result = updateWatchlistItem(targetId, { status: 'saved' });
       } else if (sub === 'remove' || sub === 'delete') {
         const targetId = positional[2] || flags.id || flags['event-id'];
         result = deleteWatchlistItem(targetId);
@@ -457,7 +463,7 @@ async function main() {
           return;
         }
       } else {
-        throw new Error(`Unknown watchlist subcommand '${sub}'. Use: list, add, update, remove, export-ics`);
+        throw new Error(`Unknown watchlist subcommand '${sub}'. Use: list, add, update, archive, restore, remove, export-ics`);
       }
       break;
     }

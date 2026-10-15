@@ -97,6 +97,17 @@ function parseMonthDayToken(token, year) {
   };
 }
 
+const WEEKDAY_INDEX = {
+  '日': 0,
+  '天': 0,
+  '一': 1,
+  '二': 2,
+  '三': 3,
+  '四': 4,
+  '五': 5,
+  '六': 6,
+};
+
 function parseEventTimeRange(timeText, options = {}) {
   const rawText = cleanText(timeText);
   if (!rawText) return null;
@@ -112,7 +123,7 @@ function parseEventTimeRange(timeText, options = {}) {
   if (/后天/.test(text)) return { start: referenceOrdinal + 2, end: referenceOrdinal + 2 };
 
   const explicitYearMatch = text.match(/(\d{4})[/-]\d{1,2}[/-]\d{1,2}/);
-  const baseYear = options.year ?? (
+  let baseYear = options.year ?? (
     explicitYearMatch
       ? Number(explicitYearMatch[1])
       : cleanText(options.date).match(/^(\d{4})-/)?.[1]
@@ -122,13 +133,33 @@ function parseEventTimeRange(timeText, options = {}) {
   const strippedYearText = text.replace(/\b\d{4}[/-]/g, '');
   const tokens = Array.from(strippedYearText.matchAll(/(\d{1,2}[/-]\d{1,2})/g)).map((match) => match[1]);
   if (tokens.length === 0) return null;
+
+  const firstMd = tokens[0].match(/(\d{1,2})[/-](\d{1,2})/);
+  const wkMatch = rawText.match(/(?:周|星期)([一二三四五六日天])/);
+  if (!explicitYearMatch && !options.year && firstMd && wkMatch) {
+    const targetDow = WEEKDAY_INDEX[wkMatch[1]];
+    const m = Number(firstMd[1]);
+    const d = Number(firstMd[2]);
+    const dowInBase = new Date(Date.UTC(baseYear, m - 1, d)).getUTCDay();
+    if (dowInBase !== targetDow) {
+      for (const offset of [-1, 1, -2, -3, 2, -4, -5]) {
+        const candidateYear = baseYear + offset;
+        const dow = new Date(Date.UTC(candidateYear, m - 1, d)).getUTCDay();
+        if (dow === targetDow) {
+          baseYear = candidateYear;
+          break;
+        }
+      }
+    }
+  }
+
   let start = parseMonthDayToken(tokens[0], baseYear);
   if (!start) return null;
-  if (!explicitYearMatch && referenceDate.getMonth() + 1 >= 10 && start.month <= 2 && !options.year) {
+  if (!explicitYearMatch && !wkMatch && referenceDate.getMonth() + 1 >= 10 && start.month <= 2 && !options.year) {
     start = parseMonthDayToken(tokens[0], baseYear + 1) || start;
   }
   if (tokens.length === 1) return { start: start.ordinal, end: start.ordinal };
-  const effectiveStartYear = !explicitYearMatch && referenceDate.getMonth() + 1 >= 10 && start.month <= 2
+  const effectiveStartYear = !explicitYearMatch && !wkMatch && referenceDate.getMonth() + 1 >= 10 && start.month <= 2
     ? baseYear + 1
     : baseYear;
   const endYear = parseMonthDayToken(tokens[1], effectiveStartYear)?.month < start.month
@@ -261,6 +292,16 @@ export function normalizeCityName(input) {
   const lower = raw.toLowerCase();
   if (CITY_ALIAS_MAP[lower]) return CITY_ALIAS_MAP[lower];
   if (CITY_ALIAS_MAP[raw]) return CITY_ALIAS_MAP[raw];
+  const strippedProvince = raw.replace(
+    /^(?:广东|江苏|浙江|四川|湖北|湖南|陕西|福建|山东|河南|河北|安徽|江西|辽宁|黑龙江|吉林|山西|广西|云南|贵州|海南|甘肃|青海|台湾|内蒙古|新疆|西藏|宁夏)省?/,
+    '',
+  ).trim();
+  if (strippedProvince) {
+    if (CITY_ALIAS_MAP[strippedProvince.toLowerCase()]) return CITY_ALIAS_MAP[strippedProvince.toLowerCase()];
+    if (CITY_ALIAS_MAP[strippedProvince]) return CITY_ALIAS_MAP[strippedProvince];
+    if (strippedProvince.length >= 3 && strippedProvince.endsWith('市')) return strippedProvince.slice(0, -1);
+    if (strippedProvince !== raw) return strippedProvince;
+  }
   if (raw.length >= 3 && raw.endsWith('市')) return raw.slice(0, -1);
   return raw;
 }
@@ -313,6 +354,11 @@ export function buildEventsUrl(args = {}) {
   const dateRange = requireDateRangeArgs(args);
   const params = new URLSearchParams();
   params.set('orderby', cleanText(args.orderby) || 'o');
+  if (args.upcomingOnly && args.status === undefined) {
+    params.set('status', '1');
+  } else if (args.status !== undefined && args.status !== '') {
+    params.set('status', String(args.status));
+  }
   if (dateRange.date || dateRange.dateTo) {
     params.set('d', 'ts');
     appendIfPresent(params, 'date', dateRange.date);

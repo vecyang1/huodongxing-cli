@@ -160,12 +160,13 @@ console.log(classifySample('/payment/cashier', { method: 'POST' }));
 
 ## 🔌 OpenCLI Adapter Suite (`opencli huodongxing <cmd>`)
 
-The `opencli-adapter/` directory provides 14 SSOT-backed OpenCLI commands that delegate directly to `src/index.js`:
+The `opencli-adapter/` directory provides 15 SSOT-backed OpenCLI commands that delegate directly to `src/index.js`:
 
 | Command | Access | Strategy | Description |
 | :--- | :--- | :--- | :--- |
 | `opencli huodongxing recommend` | `read` | `PUBLIC` | Smart regional recommendations (`佛山·广州·深圳` default, `--region`, `--cities`) |
-| `opencli huodongxing events` | `read` | `PUBLIC` | Search & filter public events (with `d=ts` date-range fix, `--cities`, `--region`, `--upcomingOnly`) |
+| `opencli huodongxing digest` | `read` | `PUBLIC` | 5-track ecosystem intelligence digest (cross-border, AI, short drama, infra, apps) |
+| `opencli huodongxing events` | `read` | `PUBLIC` | Search & filter public events (with `d=ts` date-range fix, `status=1` upcoming filter, `--cities`, `--region`, `--upcomingOnly`) |
 | `opencli huodongxing detail <id>` | `read` | `PUBLIC` | Event detail, ticket tiers & registration form schema |
 | `opencli huodongxing organizers` | `read` | `PUBLIC` | Featured event organizers directory |
 | `opencli huodongxing ranklist` | `read` | `PUBLIC` | Popularity & heat index ranklist |

@@ -17,7 +17,7 @@ import {
   parseTopicsHtml,
   parseUserStateHtml,
 } from './parsers.js';
-import { resilientFetch, autoUnbanGeetest } from './tunnel-fetch.js';
+import { resilientFetch, autoUnbanGeetest, ulcsFetch } from './tunnel-fetch.js';
 
 const DEFAULT_BASE_URL = 'https://www.huodongxing.com';
 const DEFAULT_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36';
@@ -58,12 +58,19 @@ export class DirectClient {
    * @param {string} [options.cookie]
    * @param {number} [options.minIntervalMs=900]
    * @param {Function} [options.fetchImpl]
+   * @param {Function|null} [options.ulcsFetchImpl]
    */
   constructor(options = {}) {
     this.baseUrl = (options.baseUrl || process.env.HDX_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, '');
     this.cookie = sanitizeCookieHeader(options.cookie ?? process.env.HDX_COOKIE ?? '');
     this.userAgent = options.userAgent || process.env.HDX_USER_AGENT || DEFAULT_UA;
     this.fetchImpl = options.fetchImpl || resilientFetch;
+    this.ulcsFetchImpl =
+      options.ulcsFetchImpl !== undefined
+        ? options.ulcsFetchImpl
+        : this.fetchImpl === resilientFetch
+          ? ulcsFetch
+          : null;
     this.pacer = options.pacer instanceof RequestPacer
       ? options.pacer
       : new RequestPacer(options.minIntervalMs ?? process.env.HDX_MIN_INTERVAL_MS ?? 900);
@@ -137,9 +144,9 @@ export class DirectClient {
       if (
         (res.status === 301 || res.status === 302) &&
         /verify\.huodongxing\.com\/gt3/i.test(location) &&
-        this.fetchImpl === resilientFetch
+        (this.fetchImpl === resilientFetch || this.ulcsFetchImpl)
       ) {
-        // First strip stale HDXWAFID and retry immediately; if still blocked, run ego-browser Geetest unban
+        // First strip stale HDXWAFID and retry immediately; if still blocked, try ultra-low-cost-scraper (curl_cffi TLS impersonation) then ego-browser Geetest unban
         this.cookie = stripWafId(this.cookie);
         if (this.cookie) headers.Cookie = this.cookie;
         else delete headers.Cookie;
@@ -151,14 +158,32 @@ export class DirectClient {
         });
         location = res.headers?.get?.('location') || '';
         if ((res.status === 301 || res.status === 302) && /verify\.huodongxing\.com\/gt3/i.test(location)) {
-          await autoUnbanGeetest(location);
-          res = await this.fetchImpl(url, {
-            method,
-            headers,
-            body: options.body ?? undefined,
-            redirect: 'manual',
-          });
-          location = res.headers?.get?.('location') || '';
+          if (this.ulcsFetchImpl) {
+            const ulcsRes = await this.ulcsFetchImpl(url, { method, headers, body: options.body });
+            if (ulcsRes && ulcsRes.status >= 200 && ulcsRes.status < 400) {
+              const ulcsHtml = await ulcsRes.text();
+              if (!detectWafOrErrorHtml(ulcsHtml).blocked) {
+                return {
+                  status: ulcsRes.status,
+                  redirected: false,
+                  location: '',
+                  url,
+                  html: ulcsHtml,
+                  via: ulcsRes.via || 'ulcs',
+                };
+              }
+            }
+          }
+          if (this.fetchImpl === resilientFetch) {
+            await autoUnbanGeetest(location);
+            res = await this.fetchImpl(url, {
+              method,
+              headers,
+              body: options.body ?? undefined,
+              redirect: 'manual',
+            });
+            location = res.headers?.get?.('location') || '';
+          }
         }
       }
 
@@ -185,6 +210,27 @@ export class DirectClient {
 
       const html = await res.text();
       const waf = detectWafOrErrorHtml(html);
+
+      if ((waf.blocked || res.status === 403 || res.status === 429 || res.status === 503) && this.ulcsFetchImpl) {
+        this.cookie = stripWafId(this.cookie);
+        if (this.cookie) headers.Cookie = this.cookie;
+        else delete headers.Cookie;
+        const ulcsRes = await this.ulcsFetchImpl(url, { method, headers, body: options.body });
+        if (ulcsRes && ulcsRes.status >= 200 && ulcsRes.status < 400) {
+          const ulcsHtml = await ulcsRes.text();
+          if (!detectWafOrErrorHtml(ulcsHtml).blocked) {
+            return {
+              status: ulcsRes.status,
+              redirected: false,
+              location: '',
+              url,
+              html: ulcsHtml,
+              via: ulcsRes.via || 'ulcs',
+            };
+          }
+        }
+      }
+
       if (waf.blocked) {
         const err = new Error(`${waf.code}: ${waf.message}`);
         err.code = waf.code;

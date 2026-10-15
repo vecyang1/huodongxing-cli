@@ -25,30 +25,46 @@ function formatUtcIcsTimestamp(date) {
  * - "10/27 09:00 至 10/29 15:00" (with fallback year from eventTime or current year)
  */
 export function parseTicketDateRange(eventTime, timeRange, fallbackYear = new Date().getFullYear()) {
-  const combined = `${eventTime || ''} ${timeRange || ''}`.trim();
+  const normalizeCnDate = (str) =>
+    String(str || '')
+      .replace(/(\d{4})年(\d{1,2})月(\d{1,2})日?/g, '$1-$2-$3')
+      .replace(/(\d{1,2})月(\d{1,2})日?/g, '$1/$2');
+
+  const normEventTime = normalizeCnDate(eventTime);
+  const normTimeRange = normalizeCnDate(timeRange);
+  const combined = `${normEventTime} ${normTimeRange}`.trim();
 
   // ISO format (e.g. from parseEventDetailHtml startTime/endTime)
-  const isoMatch = String(eventTime || '').match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/);
+  const isoMatch = normEventTime.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/);
   if (isoMatch) {
-    const startUtc = new Date(eventTime);
-    const endUtc = timeRange && !Number.isNaN(new Date(timeRange).getTime())
-      ? new Date(timeRange)
+    const startUtc = new Date(normEventTime);
+    const endUtc = normTimeRange && !Number.isNaN(new Date(normTimeRange).getTime())
+      ? new Date(normTimeRange)
       : new Date(startUtc.getTime() + 2 * 3600 * 1000);
     if (!Number.isNaN(startUtc.getTime())) {
       return { start: startUtc, end: endUtc };
     }
   }
 
-  const yearMatch = String(eventTime || '').match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})(?:\s+(\d{1,2}):(\d{2}))?/);
+  const yearMatch = normEventTime.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})(?:\s+(?:周[一二三四五六日天]\s*)?(\d{1,2}):(\d{2}))?/);
   const baseYear = yearMatch ? Number(yearMatch[1]) : fallbackYear;
 
   const spanMatch = combined.match(
-    /(\d{1,2})[/-](\d{1,2})\s+(?:周[一二三四五六日天]\s*)?(\d{1,2}):(\d{2})\s*(?:至|~|-)\s*(\d{1,2})[/-](\d{1,2})\s+(?:周[一二三四五六日天]\s*)?(\d{1,2}):(\d{2})/,
+    /(?:(\d{4})[/-])?(\d{1,2})[/-](\d{1,2})\s+(?:周[一二三四五六日天]\s*)?(\d{1,2}):(\d{2})\s*(?:至|~|-)\s*(?:(\d{4})[/-])?(\d{1,2})[/-](\d{1,2})\s+(?:周[一二三四五六日天]\s*)?(\d{1,2}):(\d{2})/,
   );
   if (spanMatch) {
-    const [, sm, sd, sh, smin, em, ed, eh, emin] = spanMatch.map(Number);
-    const endYear = em < sm ? baseYear + 1 : baseYear;
-    const startUtc = new Date(Date.UTC(baseYear, sm - 1, sd, sh - 8, smin, 0));
+    const [, syRaw, smRaw, sdRaw, shRaw, sminRaw, eyRaw, emRaw, edRaw, ehRaw, eminRaw] = spanMatch;
+    const startYear = syRaw ? Number(syRaw) : baseYear;
+    const sm = Number(smRaw);
+    const sd = Number(sdRaw);
+    const sh = Number(shRaw);
+    const smin = Number(sminRaw);
+    const em = Number(emRaw);
+    const ed = Number(edRaw);
+    const eh = Number(ehRaw);
+    const emin = Number(eminRaw);
+    const endYear = eyRaw ? Number(eyRaw) : (em < sm ? startYear + 1 : startYear);
+    const startUtc = new Date(Date.UTC(startYear, sm - 1, sd, sh - 8, smin, 0));
     const endUtc = new Date(Date.UTC(endYear, em - 1, ed, eh - 8, emin, 0));
     return { start: startUtc, end: endUtc };
   }
@@ -69,11 +85,12 @@ export function parseTicketDateRange(eventTime, timeRange, fallbackYear = new Da
     const smin = mdTimeMatch[4] !== undefined ? Number(mdTimeMatch[4]) : 0;
     const startUtc = new Date(Date.UTC(baseYear, sm - 1, sd, sh - 8, smin, 0));
 
-    const multiDayMatch = combined.match(/(?:至|~|-)\s*(\d{1,2})[/-](\d{1,2})/);
+    const multiDayMatch = combined.match(/(?:至|~|-)\s*(?:(\d{4})[/-])?(\d{1,2})[/-](\d{1,2})/);
     if (multiDayMatch) {
-      const em = Number(multiDayMatch[1]);
-      const ed = Number(multiDayMatch[2]);
-      const endYear = em < sm ? baseYear + 1 : baseYear;
+      const eyRaw = multiDayMatch[1];
+      const em = Number(multiDayMatch[2]);
+      const ed = Number(multiDayMatch[3]);
+      const endYear = eyRaw ? Number(eyRaw) : (em < sm ? baseYear + 1 : baseYear);
       const endUtc = new Date(Date.UTC(endYear, em - 1, ed, 18 - 8, 0, 0));
       return { start: startUtc, end: endUtc };
     }

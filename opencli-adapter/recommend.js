@@ -32,7 +32,7 @@ export const command = cli({
     const upcomingOnly = !args.includePast;
     const rawItemsByCity = {};
     for (const cityName of resolved.cities) {
-      const url = parsers.buildEventsUrl({ city: cityName, orderby: 'o' });
+      const url = parsers.buildEventsUrl({ city: cityName, orderby: 'o', upcomingOnly });
       const relativePath = url.replace(/^https?:\/\/[^/]+/i, '');
       const html = await fetchPageHtml(page, relativePath);
       rawItemsByCity[cityName] = parsers.parseEventsHtml(html, {

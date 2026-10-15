@@ -36,16 +36,23 @@ function readJsonBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     let total = 0;
+    let tooLarge = false;
     req.on('data', (chunk) => {
+      if (tooLarge) return;
       total += chunk.length;
       if (total > 1024 * 1024) {
-        reject(new Error('Request body too large'));
-        req.destroy();
+        tooLarge = true;
+        const err = new Error('Request body too large (exceeds 1MB limit)');
+        err.statusCode = 413;
+        err.code = 'PAYLOAD_TOO_LARGE';
+        req.resume();
+        reject(err);
         return;
       }
       chunks.push(chunk);
     });
     req.on('end', () => {
+      if (tooLarge) return;
       const raw = Buffer.concat(chunks).toString('utf8').trim();
       if (!raw) {
         resolve({});
@@ -56,10 +63,13 @@ function readJsonBody(req) {
       } catch {
         const err = new Error('Invalid JSON request payload');
         err.statusCode = 400;
+        err.code = 'INVALID_JSON';
         reject(err);
       }
     });
-    req.on('error', reject);
+    req.on('error', (err) => {
+      if (!tooLarge) reject(err);
+    });
   });
 }
 
@@ -289,6 +299,25 @@ export function createConsoleServer(options = {}) {
         return sendJson(res, 200, { ok: true, ...data });
       }
 
+      // 6b. Multi-Domain Ecosystem Digest (/api/digest)
+      if (method === 'GET' && pathname === '/api/digest') {
+        refreshClientConfig();
+        const digestOpts = {
+          city: query.city || undefined,
+          cities: query.cities || undefined,
+          region: query.region || undefined,
+          onlineOnly: query.onlineOnly === 'true' || query.onlineOnly === '1',
+          upcomingOnly: query.upcomingOnly !== 'false' && query.upcomingOnly !== '0',
+          limit: Number(query.limit || 24),
+        };
+        const forceRefresh = query.refresh === '1' || query.refresh === 'true';
+        const cacheKey = `digest:${JSON.stringify(digestOpts)}`;
+        const data = await cachedCall(cacheKey, forceRefresh, () =>
+          client.ecosystemDigest(digestOpts)
+        );
+        return sendJson(res, 200, { ok: true, ...data });
+      }
+
       // 7. Persistent Watchlist CRUD & iCal Export (/api/watchlist*)
       if (method === 'GET' && pathname === '/api/watchlist/ics') {
         const { ics } = exportWatchlistIcs(query);
@@ -339,7 +368,7 @@ export function createConsoleServer(options = {}) {
       }
 
       // 8. Diagnostic & Observability Center (能读 / 能试 / 能调)
-      if (method === 'GET' && pathname === '/api/diagnose/config') {
+      if (method === 'GET' && (pathname === '/api/diagnose/config' || pathname === '/api/config')) {
         refreshClientConfig();
         const configState = resolveRuntimeConfig();
         const upstreamOpencliFix = checkUpstreamOpencliOwnerFix();
@@ -350,7 +379,7 @@ export function createConsoleServer(options = {}) {
         });
       }
 
-      if (method === 'POST' && pathname === '/api/diagnose/config') {
+      if ((method === 'POST' || method === 'PUT') && (pathname === '/api/diagnose/config' || pathname === '/api/config')) {
         const body = await readJsonBody(req);
         const reset = Boolean(body.reset);
         const updates = body.updates || {};

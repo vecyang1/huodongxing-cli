@@ -25,9 +25,17 @@ import {
   listWatchlist,
   upsertWatchlistItem,
   updateWatchlistItem,
+  archiveWatchlistItem,
+  restoreWatchlistItem,
   deleteWatchlistItem,
   exportWatchlistIcs,
+  WatchlistStore,
 } from './watchlist-store.js';
+import {
+  resilientFetch,
+  ulcsFetch,
+  getUlcsScraperCliPath,
+} from './tunnel-fetch.js';
 import { createConsoleServer } from './server.js';
 import { formatOutput, toCsv, toMarkdownTable, toTerminalTable } from './formatters.js';
 import {
@@ -399,8 +407,14 @@ export {
   listWatchlist,
   upsertWatchlistItem,
   updateWatchlistItem,
+  archiveWatchlistItem,
+  restoreWatchlistItem,
   deleteWatchlistItem,
   exportWatchlistIcs,
+  WatchlistStore,
+  resilientFetch,
+  ulcsFetch,
+  getUlcsScraperCliPath,
   createConsoleServer,
   formatOutput,
   toCsv,

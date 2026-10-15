@@ -227,11 +227,13 @@ async function loadRecommendations(forceRefresh = false) {
   const regionSelect = document.getElementById('rec-region-select');
   const citiesInput = document.getElementById('rec-cities-input');
   const keywordsInput = document.getElementById('rec-keywords-input');
+  const includePastCheckbox = document.getElementById('rec-include-past');
   const applyBtn = document.getElementById('btn-apply-recommend');
 
   const regionVal = regionSelect?.value || '';
   const citiesVal = citiesInput?.value?.trim() || '';
   const keywordsVal = keywordsInput?.value?.trim() || '';
+  const includePast = Boolean(includePastCheckbox?.checked);
 
   const params = new URLSearchParams();
   if (regionVal && regionVal !== 'custom' && !citiesVal) {
@@ -242,6 +244,7 @@ async function loadRecommendations(forceRefresh = false) {
     params.set('region', 'gba');
   }
   if (keywordsVal) params.set('keywords', keywordsVal);
+  if (includePast) params.set('upcomingOnly', 'false');
   params.set('limit', '24');
   if (forceRefresh) params.set('refresh', '1');
 
@@ -760,6 +763,13 @@ function bindEvents() {
   if (recForm) {
     recForm.addEventListener('submit', (e) => {
       e.preventDefault();
+      loadRecommendations(false);
+    });
+  }
+
+  const recIncludePast = document.getElementById('rec-include-past');
+  if (recIncludePast) {
+    recIncludePast.addEventListener('change', () => {
       loadRecommendations(false);
     });
   }

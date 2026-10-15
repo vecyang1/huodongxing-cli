@@ -261,13 +261,22 @@ export function checkUpstreamOpencliOwnerFix() {
       !content.includes('args.date || args.dateTo');
     const cityNormalization = content.includes('normalizeCityName');
     const promoBannerFilter = content.includes('if (!time && !location) continue');
-    const fixed = !hasUnconditionalDts && cityNormalization && promoBannerFilter;
+    const upcomingStatusParam = content.includes("params.set('status', '1')");
+    const weekdayYearAlignment = content.includes('WEEKDAY_INDEX');
+    const fixed =
+      !hasUnconditionalDts &&
+      cityNormalization &&
+      promoBannerFilter &&
+      upcomingStatusParam &&
+      weekdayYearAlignment;
     return {
       checked: true,
       path: redactHome(UPSTREAM_OPENCLI_EVENTS_PATH),
       fixed,
       cityNormalization,
       promoBannerFilter,
+      upcomingStatusParam,
+      weekdayYearAlignment,
       status: fixed ? 'repaired' : 'unpatched_d_ts_bug',
     };
   } catch (err) {

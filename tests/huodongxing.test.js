@@ -25,8 +25,13 @@ import {
   listWatchlist,
   upsertWatchlistItem,
   updateWatchlistItem,
+  archiveWatchlistItem,
+  restoreWatchlistItem,
   deleteWatchlistItem,
   exportWatchlistIcs,
+  WatchlistStore,
+  getUlcsScraperCliPath,
+  checkUpstreamOpencliOwnerFix,
   createConsoleServer,
   formatOutput,
 } from '../src/index.js';
@@ -768,7 +773,7 @@ test('Web Console HTTP Server (/api/*, static assets, validation, config persist
 
     const cfgUpdate = await (
       await fetch(`${url}/api/diagnose/config`, {
-        method: 'POST',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ updates: { minIntervalMs: 950, defaultCities: 'foshan,guangzhou,shenzhen' } }),
       })
@@ -776,12 +781,132 @@ test('Web Console HTTP Server (/api/*, static assets, validation, config persist
     assert.equal(cfgUpdate.ok, true);
     assert.equal(cfgUpdate.configState.effective.minIntervalMs, 950);
     assert.deepEqual(cfgUpdate.configState.effective.defaultCities, ['佛山', '广州', '深圳']);
+
+    // Oversized JSON payload (>1MB) returns HTTP 413 PAYLOAD_TOO_LARGE cleanly without socket reset
+    const oversizedPayload = JSON.stringify({ id: '2882671341711', title: 'A'.repeat(1024 * 1024 + 512) });
+    const tooLargeRes = await fetch(`${url}/api/watchlist`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: oversizedPayload,
+    });
+    assert.equal(tooLargeRes.status, 413);
+    const tooLargeBody = await tooLargeRes.json();
+    assert.equal(tooLargeBody.ok, false);
+    assert.equal(tooLargeBody.code, 'PAYLOAD_TOO_LARGE');
   } finally {
     await consoleServer.close();
     if (fs.existsSync(tmpCfg)) fs.unlinkSync(tmpCfg);
     if (fs.existsSync(tmpWl)) fs.unlinkSync(tmpWl);
     delete process.env.HDX_CONFIG_PATH;
     delete process.env.HDX_WATCHLIST_PATH;
+  }
+});
+
+test('DirectClient automatic ultra-low-cost-scraper (ulcsFetch) fallback on HTTP 403, WAF HTML block, and 302 Geetest redirect', async () => {
+  assert.equal(typeof getUlcsScraperCliPath(), 'string');
+
+  let ulcsCalls = 0;
+  const mockUlcsFetch = async (url) => {
+    ulcsCalls += 1;
+    return {
+      status: 200,
+      ok: true,
+      url,
+      via: 'ulcs-direct-chrome120',
+      headers: { get: () => null },
+      text: async () => '<html><head><title>【佛山】2026跨境峰会</title></head><body><h1>【佛山】2026跨境峰会</h1></body></html>',
+    };
+  };
+
+  // Case 1: Primary fetch returns HTTP 403 Forbidden -> ulcsFetch recovers
+  const client403 = new DirectClient({
+    minIntervalMs: 0,
+    cookie: 'HDXWAFID=stale123; city=佛山',
+    fetchImpl: async () => ({
+      status: 403,
+      headers: { get: () => null },
+      text: async () => '<html><body>403 Forbidden</body></html>',
+    }),
+    ulcsFetchImpl: mockUlcsFetch,
+  });
+  const res403 = await client403.fetchHtml('/event/2882671341711');
+  assert.equal(res403.status, 200);
+  assert.equal(res403.via, 'ulcs-direct-chrome120');
+  assert.equal(res403.html.includes('2026跨境峰会'), true);
+  assert.equal(client403.cookie.includes('HDXWAFID'), false, 'Poisoned HDXWAFID must be stripped on 403 recovery');
+
+  // Case 2: Primary fetch returns 302 to verify.huodongxing.com/gt3 -> ulcsFetch recovers without needing ego-browser
+  const client302 = new DirectClient({
+    minIntervalMs: 0,
+    fetchImpl: async () => ({
+      status: 302,
+      headers: { get: (k) => (k.toLowerCase() === 'location' ? 'https://verify.huodongxing.com/gt3?returnUrl=/event/2882671341711' : null) },
+      text: async () => '',
+    }),
+    ulcsFetchImpl: mockUlcsFetch,
+  });
+  const res302 = await client302.fetchHtml('/event/2882671341711');
+  assert.equal(res302.status, 200);
+  assert.equal(res302.via, 'ulcs-direct-chrome120');
+  assert.equal(ulcsCalls, 2);
+});
+
+test('WatchlistStore class & concurrent writes without temp-file collision', async () => {
+  const tmpFile = path.join(os.tmpdir(), `hdx-wl-class-${Date.now()}.json`);
+  const store = new WatchlistStore(tmpFile);
+
+  try {
+    await Promise.all([
+      Promise.resolve().then(() => store.add({ id: '2882671341711', title: '佛山站峰会', city: '佛山' })),
+      Promise.resolve().then(() => store.add({ id: '6859860972400', title: '广州饰品展', city: '广州' })),
+    ]);
+
+    const listed = store.list({ status: 'all' });
+    assert.equal(listed.count, 2);
+
+    const archived = store.archive('2882671341711');
+    assert.equal(archived.item.status, 'archived');
+
+    const restored = store.restore('2882671341711');
+    assert.equal(restored.item.status, 'saved');
+
+    const ics = store.exportIcs();
+    assert.equal(ics.count, 2);
+    assert.equal(ics.ics.includes('BEGIN:VCALENDAR'), true);
+
+    store.delete('6859860972400');
+    assert.equal(store.list({ status: 'all' }).count, 1);
+  } finally {
+    if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile);
+  }
+});
+
+test('parseTicketDateRange handles explicit 4-digit year spans, Chinese date strings, and cross-year spans', () => {
+  const crossYearExplicit = parseTicketDateRange('2026-12-31 20:00 至 2027-01-01 02:00');
+  assert.equal(crossYearExplicit.start.toISOString(), '2026-12-31T12:00:00.000Z');
+  assert.equal(crossYearExplicit.end.toISOString(), '2026-12-31T18:00:00.000Z');
+
+  const chineseSpan = parseTicketDateRange('2026年10月27日 09:00 至 2026年10月29日 17:30');
+  assert.equal(chineseSpan.start.toISOString(), '2026-10-27T01:00:00.000Z');
+  assert.equal(chineseSpan.end.toISOString(), '2026-10-29T09:30:00.000Z');
+});
+
+test('OpenCLI adapter parity: status=1 for upcomingOnly, province prefix stripping, weekday year alignment, and dual-resolution _shared.js', () => {
+  const adapterEventsSrc = fs.readFileSync(new URL('../opencli-adapter/events.js', import.meta.url), 'utf8');
+  const adapterRecSrc = fs.readFileSync(new URL('../opencli-adapter/recommend.js', import.meta.url), 'utf8');
+  const adapterSharedSrc = fs.readFileSync(new URL('../opencli-adapter/_shared.js', import.meta.url), 'utf8');
+
+  assert.equal(adapterEventsSrc.includes("params.set('status', '1')"), true, 'opencli-adapter/events.js must set status=1 when upcomingOnly is true');
+  assert.equal(adapterEventsSrc.includes('WEEKDAY_INDEX'), true, 'opencli-adapter/events.js must include WEEKDAY_INDEX year deduction');
+  assert.equal(adapterEventsSrc.includes('strippedProvince'), true, 'opencli-adapter/events.js must strip province prefixes in normalizeCityName');
+  assert.equal(adapterRecSrc.includes('upcomingOnly'), true, 'opencli-adapter/recommend.js must pass upcomingOnly to buildEventsUrl');
+  assert.equal(adapterSharedSrc.includes("import('huodongxing-cli')"), true, 'opencli-adapter/_shared.js must support package fallback when copied to ~/.opencli/clis/huodongxing');
+
+  const upstreamStatus = checkUpstreamOpencliOwnerFix();
+  if (upstreamStatus.checked) {
+    assert.equal(upstreamStatus.fixed, true);
+    assert.equal(upstreamStatus.upcomingStatusParam, true);
+    assert.equal(upstreamStatus.weekdayYearAlignment, true);
   }
 });
 
@@ -793,5 +918,6 @@ test('Zero-Facade static audit: public/app.js and public/index.html contain zero
   assert.equal(/\balert\s*\(/.test(appJs), false, 'public/app.js must not contain alert() placeholders');
   assert.equal(/Coming soon|敬请期待/i.test(appJs + indexHtml), false, 'UI must not contain Coming Soon placeholders');
 });
+
 
 

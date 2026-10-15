@@ -180,9 +180,11 @@ test('Browser E2E (ego-browser): full user journeys, invalid inputs, reload pers
             const ok = await page.evaluate(fn);
             if (ok) return true;
           } catch (err) {
-            if (!String(err?.message || err).includes("Cannot find context")) {
-              throw err;
+            if (String(err?.message || err).includes("Cannot find context")) {
+              await page.waitForTimeout(200);
+              continue;
             }
+            throw err;
           }
           await page.waitForTimeout(150);
         }
@@ -196,10 +198,15 @@ test('Browser E2E (ego-browser): full user journeys, invalid inputs, reload pers
         mobile: false,
       });
 
-      await page.goto(${JSON.stringify(url)}, { waitUntil: "domcontentloaded" });
+      await page.goto(${JSON.stringify(url)}, { waitUntil: "load" });
+      await page.waitForTimeout(300);
       await safeWait(() => window.__hdxTelemetry && window.__hdxTelemetry.appReady === true, 15000);
 
-      // 1. Verify Recommend View & City Filtering (Foshan / Guangzhou / Shenzhen)
+      // 1. Verify Recommend View, Include-Past Toggle & City Filtering (Foshan / Guangzhou / Shenzhen)
+      await page.click('[data-testid="rec-include-past"]', { label: "Toggle include past events" });
+      await safeWait(() => document.getElementById("btn-export-recommend-ics")?.getAttribute("href")?.includes("upcomingOnly=false"), 5000);
+      await page.click('[data-testid="rec-include-past"]', { label: "Uncheck include past events" });
+
       await page.click('[data-testid="city-tab-佛山"]', { label: "Filter Foshan events" });
       await safeWait(() => document.querySelectorAll("#recommend-cards-grid .event-card").length === 1, 5000);
 
@@ -281,8 +288,8 @@ test('Browser E2E (ego-browser): full user journeys, invalid inputs, reload pers
       await safeWait(() => document.getElementById("pacer-status-pill")?.textContent?.includes("1150ms"), 5000);
 
       // 7. Hard Reload & Verify SSOT Persistence (Watchlist + Config)
-      await page.reload({ waitUntil: "domcontentloaded" });
-      await page.waitForTimeout(250);
+      await page.reload({ waitUntil: "load" });
+      await page.waitForTimeout(300);
       await safeWait(() => window.__hdxTelemetry && window.__hdxTelemetry.appReady === true, 15000);
 
       const afterReload = await page.evaluate(() => ({

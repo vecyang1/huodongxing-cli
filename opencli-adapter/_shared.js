@@ -1,11 +1,22 @@
-import {
+import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+const localSrcUrl = new URL('../src/index.js', import.meta.url);
+const coreModule = fs.existsSync(fileURLToPath(localSrcUrl))
+  ? await import(localSrcUrl.href)
+  : await import('huodongxing-cli');
+
+const {
   parsers,
   assertSafeRoute,
   RequestPacer,
   classifySample,
   resolveRuntimeConfig,
   checkUpstreamOpencliOwnerFix,
-} from '../src/index.js';
+  classifyEventDomains,
+  extractTechSignals,
+  buildEcosystemDigestMarkdown,
+} = coreModule;
 
 const sharedPacer = new RequestPacer(900);
 
@@ -59,4 +70,8 @@ export {
   classifySample,
   resolveRuntimeConfig,
   checkUpstreamOpencliOwnerFix,
+  classifyEventDomains,
+  extractTechSignals,
+  buildEcosystemDigestMarkdown,
 };
+

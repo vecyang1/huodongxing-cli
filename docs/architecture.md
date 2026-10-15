@@ -29,17 +29,19 @@ flowchart TD
 | `src/version.js` | SSOT package version, name, license, and description from `package.json`. |
 | `src/security-guard.js` | Pre-socket `SECURITY_ROUTE_DENYLIST` enforcement (`assertSafeRoute`, `inspectRouteSafety`, `assertSafeCliAction`) and sequential token-bucket `RequestPacer` (`minIntervalMs: 900`). |
 | `src/parsers.js` | Pure deterministic HTML & inline SSR JSON parsers (`ativityJson`, `eventTicketsJson`, `formItemsJson`, `mUserState`, `currentUser`), `buildEventsUrl` (`d=ts` fix), bilingual city/region normalization (`佛山, 广州, 深圳`), and `scoreAndRankRecommendations`. |
-| `src/direct-client.js` | Direct HTTP engine with `HDXWAFID` cookie capture and Geetest v3 WAF redirect detection. |
+| `src/direct-client.js` | Direct HTTP engine with `HDXWAFID` cookie capture, `ulcsFetch` (`curl_cffi` TLS impersonation + residential proxy) fallback, and Geetest v3 WAF redirect recovery. |
+| `src/tunnel-fetch.js` | Multi-tier anti-WAF transport (`resilientFetch` local Clash proxy -> `ulcsFetch` `ultra-low-cost-scraper` Chrome 120 TLS impersonation & residential proxy -> `autoUnbanGeetest` via `ego-browser`). |
 | `src/opencli-client.js` | OpenCLI Browser Bridge client executing in-origin `fetch()` via `opencli browser <session> eval`. |
-| `src/ics.js` | RFC 5545 `.ics` calendar generator for attendee tickets, regional recommendations, and watchlist items (`generateTicketsIcs`, `generateEventsIcs`). |
-| `src/watchlist-store.js` | Persistent server/CLI watchlist store (`~/.config/huodongxing-cli/watchlist.json`) with CRUD, soft-delete (`archived`) / restore (`saved`), and `.ics` export. |
-| `src/server.js` | HTTP + SSE real-time console server (`createConsoleServer`) serving `public/` and `/api/*` endpoints. |
+| `src/ecosystem-digest.js` | 5-track ecosystem intelligence digest engine (`generateEcosystemDigest`, `classifyEventDomains`, `extractTechSignals`, online/hybrid webinar classifier). |
+| `src/ics.js` | RFC 5545 `.ics` calendar generator for attendee tickets, regional recommendations, and watchlist items (`generateTicketsIcs`, `generateEventsIcs`, `parseTicketDateRange`). |
+| `src/watchlist-store.js` | Persistent server/CLI watchlist store (`~/.config/huodongxing-cli/watchlist.json`, `WatchlistStore`) with CRUD, soft-delete (`archived`) / restore (`saved`), and `.ics` export. |
+| `src/server.js` | HTTP + SSE real-time console server (`createConsoleServer`) serving `public/` and `/api/*` endpoints (`/api/recommend`, `/api/digest`, `/api/watchlist`, `/api/diagnose/*`). |
 | `src/diagnose.js` | Diagnostic-First observability (`resolveRuntimeConfig`, `updateOperatorConfig`, `classifySample`, `runDiagnosticReconcile`). |
 | `src/formatters.js` | Multi-format output renderers (`json`, `table`, `md`, `csv`). |
 | `src/index.js` | Unified `HuodongxingClient` facade and SDK exports. |
-| `bin/huodongxing.js` | Executable CLI entrypoint (`huodongxing` & `hdx`, including `recommend`, `watchlist`, and `serve`). |
+| `bin/huodongxing.js` | Executable CLI entrypoint (`huodongxing` & `hdx`, including `recommend`, `digest`, `watchlist`, and `serve`). |
 | `public/` | Zero-facade Regional Recommendation, Watchlist & Diagnostic Web Console (`index.html`, `app.js`, `styles/tokens.css`, `styles/main.css`). |
-| `opencli-adapter/` | SSOT-delegating OpenCLI command definitions (`14` commands) synced to `~/.opencli/clis/huodongxing/` and upstream `@jackwener/opencli`. |
+| `opencli-adapter/` | SSOT-delegating OpenCLI command definitions (`15` commands) synced to `~/.opencli/clis/huodongxing/` and upstream `@jackwener/opencli`. |
 
 ## 3. Reverse-Engineered Platform Contracts (`rea` AST Analysis)
 

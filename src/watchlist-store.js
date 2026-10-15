@@ -60,7 +60,8 @@ function writeRawStore(items) {
     updatedAt: new Date().toISOString(),
     items,
   };
-  const tmpFile = `${file}.tmp.${process.pid}`;
+  const uniqueSuffix = `${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2, 8)}`;
+  const tmpFile = `${file}.tmp.${uniqueSuffix}`;
   fs.writeFileSync(tmpFile, JSON.stringify(payload, null, 2) + '\n', 'utf8');
   fs.renameSync(tmpFile, file);
   // SSOT Unidirectional Data Flow: Always re-read from disk after write
@@ -293,3 +294,79 @@ export function exportWatchlistIcs(filters = {}) {
     ics,
   };
 }
+
+/**
+ * Archives an existing watchlist item (sets status to 'archived').
+ */
+export function archiveWatchlistItem(id) {
+  return updateWatchlistItem(id, { status: 'archived' });
+}
+
+/**
+ * Restores an archived watchlist item (sets status to 'saved').
+ */
+export function restoreWatchlistItem(id) {
+  return updateWatchlistItem(id, { status: 'saved' });
+}
+
+/**
+ * Class-based facade for the persistent Watchlist SSOT store.
+ */
+export class WatchlistStore {
+  constructor(options = {}) {
+    if (typeof options === 'string') {
+      this.filePath = options;
+    } else {
+      this.filePath = options.filePath || null;
+    }
+  }
+
+  _withPath(fn) {
+    if (!this.filePath) return fn();
+    const prev = process.env.HDX_WATCHLIST_PATH;
+    process.env.HDX_WATCHLIST_PATH = this.filePath;
+    try {
+      return fn();
+    } finally {
+      if (prev === undefined) delete process.env.HDX_WATCHLIST_PATH;
+      else process.env.HDX_WATCHLIST_PATH = prev;
+    }
+  }
+
+  list(filters = {}) {
+    return this._withPath(() => listWatchlist(filters));
+  }
+
+  upsert(payload = {}) {
+    return this._withPath(() => upsertWatchlistItem(payload));
+  }
+
+  add(payload = {}) {
+    return this.upsert(payload);
+  }
+
+  update(id, patch = {}) {
+    return this._withPath(() => updateWatchlistItem(id, patch));
+  }
+
+  archive(id) {
+    return this._withPath(() => archiveWatchlistItem(id));
+  }
+
+  restore(id) {
+    return this._withPath(() => restoreWatchlistItem(id));
+  }
+
+  remove(id) {
+    return this._withPath(() => deleteWatchlistItem(id));
+  }
+
+  delete(id) {
+    return this.remove(id);
+  }
+
+  exportIcs(filters = {}) {
+    return this._withPath(() => exportWatchlistIcs(filters));
+  }
+}
+
