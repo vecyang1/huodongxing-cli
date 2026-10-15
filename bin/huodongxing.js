@@ -167,6 +167,7 @@ async function main() {
         city: flags.city || positional[1] || undefined,
         cities: flags.cities || undefined,
         region: flags.region || undefined,
+        onlineOnly: Boolean(flags['online-only'] || flags.online),
         limit: Number(flags.limit || 30),
         upcomingOnly: !flags['include-past'],
         output: flags.output || flags.o || '',

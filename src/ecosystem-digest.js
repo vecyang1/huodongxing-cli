@@ -122,12 +122,43 @@ export function extractTechSignals(text) {
 }
 
 /**
+ * Evaluates whether an event offers online or remote attendance (webinars, livestreams, conferences).
+ * @param {object} event
+ * @returns {{ canAttendOnline: boolean, attendanceMode: 'online' | 'hybrid' | 'offline', attendanceLabel: string }}
+ */
+export function evaluateOnlineAttendance(event) {
+  const text = `${event.title || ''} ${event.location || ''} ${event.organizer || ''} ${(event.matchedTags || []).join(' ')}`;
+  const isExplicitOnline = event.eventType === 'online' || event.eventType === '2';
+  const hasOnlineKeyword = /线上|在线|直播|云端|远程|腾讯会议|飞书会议|视频号|webinar|zoom|钉钉|公开课|网课|网络研讨/i.test(text);
+  const isHybrid = /双线|线上线下|同步直播|视频号直播|支持线上/i.test(text);
+
+  if (isExplicitOnline) {
+    let modeLabel = '线上研讨';
+    if (/腾讯会议/i.test(text)) modeLabel = '腾讯会议';
+    else if (/视频号/i.test(text)) modeLabel = '视频号直播';
+    else if (/直播/i.test(text)) modeLabel = '线上直播';
+    return { canAttendOnline: true, attendanceMode: 'online', attendanceLabel: modeLabel };
+  }
+
+  if (isHybrid) {
+    return { canAttendOnline: true, attendanceMode: 'hybrid', attendanceLabel: '双线同步直播' };
+  }
+
+  if (hasOnlineKeyword && !/线下独享|仅限线下/i.test(text)) {
+    return { canAttendOnline: true, attendanceMode: 'online', attendanceLabel: '线上/直播' };
+  }
+
+  const city = event.matchedCity || event.city || '线下活动';
+  return { canAttendOnline: false, attendanceMode: 'offline', attendanceLabel: `线下 · ${city}` };
+}
+
+/**
  * Scans Huodongxing across all target ecosystem domains for specified cities.
  * @param {object} client HuodongxingClient instance
  * @param {object} options
  * @returns {Promise<object>}
  */
-export function buildEcosystemDigestMarkdown({ metadata, stats, domainGroups, topOrganizers, topSignals }) {
+export function buildEcosystemDigestMarkdown({ metadata, stats, domainGroups, onlineEvents = [], topOrganizers, topSignals }) {
   const lines = [];
 
   const cityLabel = metadata.cities.join(' · ');
@@ -137,6 +168,7 @@ export function buildEcosystemDigestMarkdown({ metadata, stats, domainGroups, to
     ? ` (${Object.entries(stats.byCityCounts).map(([c, n]) => `${c}: ${n} 场`).join(' · ')})`
     : '';
   lines.push(`> 📅 **巡检周期**: ${metadata.scanDate} | 📍 **巡检目标地域**: ${metadata.cities.join('、')}${cityBreakdown} | 🔍 **全量扫描去重活动数**: ${stats.totalUniqueEvents}`);
+  lines.push(`> 🌐 **支持线上远程参会**: ${stats.onlineAttendanceCount || 0} 场 | 🏛️ **纯线下活动**: ${stats.offlineAttendanceCount || 0} 场`);
   lines.push(`> 🎯 **覆盖生态赛道**: 跨境出海 · 人工智能与智能体 · 漫剧短剧 · 基础设施与架构 · 创新应用与SaaS`);
   lines.push(``);
 
@@ -145,8 +177,30 @@ export function buildEcosystemDigestMarkdown({ metadata, stats, domainGroups, to
   lines.push(`1. **短剧出海与漫剧AI化爆发**: 广深佛与长三角上海正在形成极高密度的“短剧出海 + AI赋能”研讨热潮（涵盖制作管线、短剧商业模式与出海投流）。`);
   lines.push(`2. **企业级AI转型与营销智能体落地**: 从通用大模型向特定垂直领域（如上海/深圳的GEO营销、外贸B2B拓客、FDE全流程变现、OPC单人企业大模型应用）加速沉淀。`);
   lines.push(`3. **旺季跨境与DTC出海供应链发力**: 亚马逊黑五流量打法、Meta出海体验中心、广交会及长三角/珠三角出海生态展会密集召开。`);
-  lines.push(`4. **国内技术栈热点**: ${topSignals.slice(0, 10).map((s) => `\`${s}\``).join(' ')}。`);
+  lines.push(`4. **远程参会接入友好度**: 本期共识别出 ${stats.onlineAttendanceCount || 0} 场支持线上直播、腾讯会议或双线接入的前沿活动，海外或异地决策者可零门槛直接参与。`);
+  lines.push(`5. **国内技术栈热点**: ${topSignals.slice(0, 10).map((s) => `\`${s}\``).join(' ')}。`);
   lines.push(``);
+
+  lines.push(`## 🌐 线上参会与远程接入精选 (Online & Remote Attendance Track)`);
+  lines.push(`> **海外操作员直通车**: 针对身处海外或异地场景，以下活动提供在线直播、腾讯会议或双线接入，无需亲临现场即可实时接入国内一手行业研讨与资源对接。`);
+  lines.push(``);
+
+  if (onlineEvents.length === 0) {
+    lines.push(`*本周期暂未识别到支持线上直播的公开活动。*`);
+    lines.push(``);
+  } else {
+    lines.push(`| 序号 | 活动名称 | 时间 | 线上形式 | 主办方 | 关联赛道 | 核心热词 | 直达链接 |`);
+    lines.push(`| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |`);
+
+    onlineEvents.slice(0, 20).forEach((ev, idx) => {
+      const escapedTitle = ev.title.replace(/\|/g, '&#124;').trim();
+      const escapedOrg = (ev.organizer || '平台主办').replace(/\|/g, '&#124;').trim();
+      const signals = (ev.signals || []).slice(0, 3).join(', ') || '-';
+      const domainNames = (ev.domains || []).map((dId) => ECOSYSTEM_DOMAINS.find((d) => d.id === dId)?.shortName || dId).slice(0, 2).join(' / ');
+      lines.push(`| ${idx + 1} | **${escapedTitle}** | ${ev.time} | \`${ev.attendanceLabel || '线上'}\` | ${escapedOrg} | ${domainNames} | \`${signals}\` | [查看报名](${ev.url}) |`);
+    });
+    lines.push(``);
+  }
 
   lines.push(`## 二、分赛道活动全景 (Domain Deep-Dive)`);
   lines.push(``);
@@ -163,15 +217,17 @@ export function buildEcosystemDigestMarkdown({ metadata, stats, domainGroups, to
       continue;
     }
 
-    lines.push(`| 序号 | 活动名称 | 时间 | 地点/形式 | 主办方/生态伙伴 | 核心技术/生态热词 | 链接 |`);
+    lines.push(`| 序号 | 活动名称 | 时间 | 参会形式/地点 | 主办方/生态伙伴 | 核心技术/生态热词 | 链接 |`);
     lines.push(`| :--- | :--- | :--- | :--- | :--- | :--- | :--- |`);
 
     events.slice(0, 15).forEach((ev, idx) => {
       const escapedTitle = ev.title.replace(/\|/g, '&#124;').trim();
       const escapedOrg = (ev.organizer || '平台主办').replace(/\|/g, '&#124;').trim();
-      const location = ev.eventType === 'online' ? '线上研讨' : (ev.matchedCity || ev.city || '大湾区/长三角');
+      const locationBadge = ev.canAttendOnline
+        ? `🌐 ${ev.attendanceLabel || '线上'}`
+        : `🏛️ ${ev.matchedCity || ev.city || '线下'}`;
       const signals = (ev.signals || []).slice(0, 3).join(', ') || '-';
-      lines.push(`| ${idx + 1} | **${escapedTitle}** | ${ev.time} | ${location} | ${escapedOrg} | \`${signals}\` | [查看活动](${ev.url}) |`);
+      lines.push(`| ${idx + 1} | **${escapedTitle}** | ${ev.time} | ${locationBadge} | ${escapedOrg} | \`${signals}\` | [查看活动](${ev.url}) |`);
     });
 
     lines.push(``);
@@ -252,6 +308,28 @@ export async function generateEcosystemDigest(client, options = {}) {
     }
   }
 
+  // 2b. Nationwide & regional online events sweep (webinars, livestreams, remote forums)
+  const onlineKeywords = ['跨境', '出海', 'AI', '短剧', '漫剧', '智能体', 'SaaS', 'OPC'];
+  for (const kw of onlineKeywords) {
+    try {
+      const searchRes = await client.searchEvents({
+        eventType: '2',
+        city: '全部',
+        keyword: kw,
+        upcomingOnly: options.upcomingOnly !== false,
+        limit: 8,
+      });
+      for (const item of searchRes.items || []) {
+        if (item?.id && !seenEventIds.has(item.id)) {
+          seenEventIds.add(item.id);
+          allEvents.push(item);
+        }
+      }
+    } catch (err) {
+      // Continue across online keywords
+    }
+  }
+
   // 3. Process, classify, and extract signals for each event
   const domainGroups = {};
   for (const d of ECOSYSTEM_DOMAINS) {
@@ -260,12 +338,27 @@ export async function generateEcosystemDigest(client, options = {}) {
 
   const organizerCounts = {};
   const signalCounts = {};
+  const onlineEvents = [];
 
   for (const ev of allEvents) {
     const matchedDomains = classifyEventDomains(ev);
     const signals = extractTechSignals(`${ev.title} ${ev.organizer}`);
+    const onlineInfo = evaluateOnlineAttendance(ev);
+
     ev.domains = matchedDomains;
     ev.signals = signals;
+    ev.canAttendOnline = onlineInfo.canAttendOnline;
+    ev.attendanceMode = onlineInfo.attendanceMode;
+    ev.attendanceLabel = onlineInfo.attendanceLabel;
+
+    if (ev.canAttendOnline) {
+      onlineEvents.push(ev);
+    }
+
+    // If onlineOnly is requested, skip grouping offline events
+    if (options.onlineOnly && !ev.canAttendOnline) {
+      continue;
+    }
 
     for (const dId of matchedDomains) {
       if (domainGroups[dId]) {
@@ -285,6 +378,9 @@ export async function generateEcosystemDigest(client, options = {}) {
   for (const dId of Object.keys(domainGroups)) {
     domainGroups[dId].sort((a, b) => (b.recommendScore || 0) - (a.recommendScore || 0));
   }
+
+  // Sort online events by relevance / time
+  onlineEvents.sort((a, b) => (b.recommendScore || 0) - (a.recommendScore || 0));
 
   const topOrganizers = Object.entries(organizerCounts)
     .map(([name, count]) => ({ name, count }))
@@ -307,10 +403,13 @@ export async function generateEcosystemDigest(client, options = {}) {
     scanDate,
     cities,
     generatedAt: new Date().toISOString(),
+    onlineOnly: Boolean(options.onlineOnly),
   };
 
   const stats = {
     totalUniqueEvents: allEvents.length,
+    onlineAttendanceCount: onlineEvents.length,
+    offlineAttendanceCount: Math.max(allEvents.length - onlineEvents.length, 0),
     byDomain: Object.fromEntries(
       Object.entries(domainGroups).map(([k, v]) => [k, v.length])
     ),
@@ -321,6 +420,7 @@ export async function generateEcosystemDigest(client, options = {}) {
     metadata,
     stats,
     domainGroups,
+    onlineEvents,
     topOrganizers,
     topSignals,
   });
@@ -337,10 +437,11 @@ export async function generateEcosystemDigest(client, options = {}) {
   return {
     metadata,
     stats,
+    onlineEvents,
     topOrganizers,
     topSignals,
     domainGroups,
-    allEvents,
+    allEvents: options.onlineOnly ? onlineEvents : allEvents,
     markdown,
   };
 }
