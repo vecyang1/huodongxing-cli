@@ -78,12 +78,30 @@ test('generateEcosystemDigest produces structured report with mock client', asyn
   };
 
   const digest = await generateEcosystemDigest(mockClient, {
-    cities: '深圳',
+    cities: 'sz,Guangzhou,foshan,shanghai',
     limit: 10,
   });
 
   assert.equal(digest.stats.totalUniqueEvents, 2);
-  assert.ok(digest.markdown.includes('深圳及国内前沿生态每周雷达'));
+  assert.deepEqual(digest.metadata.cities, ['深圳', '广州', '佛山', '上海']);
+  assert.ok(digest.stats.byCityCounts);
+  assert.ok(digest.markdown.includes('国内前沿生态每周雷达'));
   assert.ok(digest.markdown.includes('2026 AI短剧产业生态创新大会'));
   assert.ok(digest.markdown.includes('亚马逊跨境卖家黑五流量峰会'));
+});
+
+test('generateEcosystemDigest defaults to 4 core cities (深圳, 广州, 佛山, 上海)', async () => {
+  const mockClient = {
+    async recommendEvents() {
+      return { items: [] };
+    },
+    async searchEvents() {
+      return { items: [] };
+    },
+  };
+  const digest = await generateEcosystemDigest(mockClient);
+  assert.deepEqual(digest.metadata.cities, ['深圳', '广州', '佛山', '上海']);
+  assert.equal(digest.stats.totalUniqueEvents, 0);
+  assert.ok(digest.stats.byCityCounts['深圳'] === 0);
+  assert.ok(digest.stats.byCityCounts['上海'] === 0);
 });

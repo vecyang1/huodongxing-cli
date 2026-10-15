@@ -130,17 +130,21 @@ export function extractTechSignals(text) {
 export function buildEcosystemDigestMarkdown({ metadata, stats, domainGroups, topOrganizers, topSignals }) {
   const lines = [];
 
-  lines.push(`# 深圳及国内前沿生态每周雷达 (Ecosystem Weekly Radar)`);
+  const cityLabel = metadata.cities.join(' · ');
+  lines.push(`# 国内前沿生态每周雷达 · ${cityLabel} (Ecosystem Weekly Radar)`);
   lines.push(``);
-  lines.push(`> 📅 **巡检周期**: ${metadata.scanDate} | 📍 **巡检目标地域**: ${metadata.cities.join('、')} | 🔍 **全量扫描去重活动数**: ${stats.totalUniqueEvents}`);
+  const cityBreakdown = stats.byCityCounts
+    ? ` (${Object.entries(stats.byCityCounts).map(([c, n]) => `${c}: ${n} 场`).join(' · ')})`
+    : '';
+  lines.push(`> 📅 **巡检周期**: ${metadata.scanDate} | 📍 **巡检目标地域**: ${metadata.cities.join('、')}${cityBreakdown} | 🔍 **全量扫描去重活动数**: ${stats.totalUniqueEvents}`);
   lines.push(`> 🎯 **覆盖生态赛道**: 跨境出海 · 人工智能与智能体 · 漫剧短剧 · 基础设施与架构 · 创新应用与SaaS`);
   lines.push(``);
 
   lines.push(`## 一、前沿生态核心情报提炼 (Executive Insights)`);
   lines.push(``);
-  lines.push(`1. **短剧出海与漫剧AI化爆发**: 深圳及华南正在形成极高密度的“短剧出海 + AI赋能”研讨热潮（涵盖制作管线、短剧商业模式与出海投流）。`);
-  lines.push(`2. **企业级AI转型与营销智能体落地**: 从通用大模型向特定垂直领域（如GEO营销、外贸B2B拓客、FDE全流程变现、OPC单人企业大模型应用）加速沉淀。`);
-  lines.push(`3. **旺季跨境与DTC出海供应链发力**: 亚马逊黑五流量新打法、Meta出海体验中心启幕、全球品牌出海（Brand Tech）与国际展会扎堆召开。`);
+  lines.push(`1. **短剧出海与漫剧AI化爆发**: 广深佛与长三角上海正在形成极高密度的“短剧出海 + AI赋能”研讨热潮（涵盖制作管线、短剧商业模式与出海投流）。`);
+  lines.push(`2. **企业级AI转型与营销智能体落地**: 从通用大模型向特定垂直领域（如上海/深圳的GEO营销、外贸B2B拓客、FDE全流程变现、OPC单人企业大模型应用）加速沉淀。`);
+  lines.push(`3. **旺季跨境与DTC出海供应链发力**: 亚马逊黑五流量打法、Meta出海体验中心、广交会及长三角/珠三角出海生态展会密集召开。`);
   lines.push(`4. **国内技术栈热点**: ${topSignals.slice(0, 10).map((s) => `\`${s}\``).join(' ')}。`);
   lines.push(``);
 
@@ -165,7 +169,7 @@ export function buildEcosystemDigestMarkdown({ metadata, stats, domainGroups, to
     events.slice(0, 15).forEach((ev, idx) => {
       const escapedTitle = ev.title.replace(/\|/g, '&#124;').trim();
       const escapedOrg = (ev.organizer || '平台主办').replace(/\|/g, '&#124;').trim();
-      const location = ev.eventType === 'online' ? '线上研讨' : (ev.city || '深圳');
+      const location = ev.eventType === 'online' ? '线上研讨' : (ev.matchedCity || ev.city || '大湾区/长三角');
       const signals = (ev.signals || []).slice(0, 3).join(', ') || '-';
       lines.push(`| ${idx + 1} | **${escapedTitle}** | ${ev.time} | ${location} | ${escapedOrg} | \`${signals}\` | [查看活动](${ev.url}) |`);
     });
@@ -198,8 +202,8 @@ export function buildEcosystemDigestMarkdown({ metadata, stats, domainGroups, to
  * Main engine executing the multi-facet ecosystem sweep.
  */
 export async function generateEcosystemDigest(client, options = {}) {
-  const resolvedRegion = resolveRegionOrCities(options, ['深圳']);
-  const cities = resolvedRegion.cities.length > 0 ? resolvedRegion.cities : ['深圳'];
+  const resolvedRegion = resolveRegionOrCities(options, ['深圳', '广州', '佛山', '上海']);
+  const cities = resolvedRegion.cities.length > 0 ? resolvedRegion.cities : ['深圳', '广州', '佛山', '上海'];
 
   const scanDate = new Date().toISOString().slice(0, 10);
   const seenEventIds = new Set();
@@ -224,24 +228,26 @@ export async function generateEcosystemDigest(client, options = {}) {
     // Graceful fallback if recommend fails
   }
 
-  // 2. Targeted multi-facet search per domain keyword
+  // 2. Targeted multi-facet search per domain keyword across target cities
   for (const domain of ECOSYSTEM_DOMAINS) {
-    for (const kw of domain.keywords.slice(0, 3)) {
-      try {
-        const searchRes = await client.searchEvents({
-          city: cities[0] || '深圳',
-          keyword: kw,
-          upcomingOnly: options.upcomingOnly !== false,
-          limit: 10,
-        });
-        for (const item of searchRes.items || []) {
-          if (item?.id && !seenEventIds.has(item.id)) {
-            seenEventIds.add(item.id);
-            allEvents.push(item);
+    for (const kw of domain.keywords.slice(0, 2)) {
+      for (const targetCity of cities) {
+        try {
+          const searchRes = await client.searchEvents({
+            city: targetCity,
+            keyword: kw,
+            upcomingOnly: options.upcomingOnly !== false,
+            limit: 8,
+          });
+          for (const item of searchRes.items || []) {
+            if (item?.id && !seenEventIds.has(item.id)) {
+              seenEventIds.add(item.id);
+              allEvents.push(item);
+            }
           }
+        } catch (err) {
+          // Continue across other keywords and cities
         }
-      } catch (err) {
-        // Continue across other keywords
       }
     }
   }
@@ -288,6 +294,15 @@ export async function generateEcosystemDigest(client, options = {}) {
     .sort((a, b) => b[1] - a[1])
     .map(([sig]) => sig);
 
+  const byCityCounts = {};
+  for (const c of cities) byCityCounts[c] = 0;
+  for (const ev of allEvents) {
+    const c = ev.matchedCity || ev.city;
+    if (c && byCityCounts[c] !== undefined) {
+      byCityCounts[c]++;
+    }
+  }
+
   const metadata = {
     scanDate,
     cities,
@@ -299,6 +314,7 @@ export async function generateEcosystemDigest(client, options = {}) {
     byDomain: Object.fromEntries(
       Object.entries(domainGroups).map(([k, v]) => [k, v.length])
     ),
+    byCityCounts,
   };
 
   const markdown = buildEcosystemDigestMarkdown({

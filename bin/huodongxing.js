@@ -164,8 +164,9 @@ async function main() {
     case 'digest':
     case 'ecosystem-digest': {
       result = await client.ecosystemDigest({
-        city: flags.city || positional[1] || '深圳',
-        cities: flags.cities || '',
+        city: flags.city || positional[1] || undefined,
+        cities: flags.cities || undefined,
+        region: flags.region || undefined,
         limit: Number(flags.limit || 30),
         upcomingOnly: !flags['include-past'],
         output: flags.output || flags.o || '',

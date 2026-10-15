@@ -23,6 +23,30 @@ const DEFAULT_BASE_URL = 'https://www.huodongxing.com';
 const DEFAULT_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36';
 
 /**
+ * Sanitizes a Cookie header string so non-ASCII values (such as unencoded Chinese city cookies
+ * from document.cookie) are URI-encoded and never trigger Node's ERR_INVALID_CHAR.
+ * @param {string} cookieStr
+ * @returns {string}
+ */
+export function sanitizeCookieHeader(cookieStr) {
+  return String(cookieStr || '')
+    .replace(/[\r\n]+/g, '; ')
+    .split(';')
+    .map((pair) => pair.trim())
+    .filter(Boolean)
+    .map((pair) => {
+      const eqIdx = pair.indexOf('=');
+      if (eqIdx === -1) return pair.replace(/[^\x20-\x7E]/g, '');
+      const k = pair.slice(0, eqIdx).trim().replace(/[^\x20-\x7E]/g, '');
+      const v = pair.slice(eqIdx + 1).trim();
+      const safeV = /[^\x20-\x7E]/.test(v) ? encodeURIComponent(v) : v;
+      return k ? `${k}=${safeV}` : '';
+    })
+    .filter(Boolean)
+    .join('; ');
+}
+
+/**
  * Direct HTTP Client for Huodongxing (活动行).
  * Uses Node native fetch with RequestPacer, pre-socket Security Guard, and manual redirect
  * inspection to detect OpenResty WAF redirects (verify.huodongxing.com/gt3) cleanly.
@@ -37,7 +61,7 @@ export class DirectClient {
    */
   constructor(options = {}) {
     this.baseUrl = (options.baseUrl || process.env.HDX_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, '');
-    this.cookie = options.cookie ?? process.env.HDX_COOKIE ?? '';
+    this.cookie = sanitizeCookieHeader(options.cookie ?? process.env.HDX_COOKIE ?? '');
     this.userAgent = options.userAgent || process.env.HDX_USER_AGENT || DEFAULT_UA;
     this.fetchImpl = options.fetchImpl || resilientFetch;
     this.pacer = options.pacer instanceof RequestPacer
@@ -46,7 +70,7 @@ export class DirectClient {
   }
 
   setCookie(cookieStr) {
-    this.cookie = String(cookieStr || '').trim();
+    this.cookie = sanitizeCookieHeader(cookieStr);
   }
 
   hasCookie() {
@@ -75,7 +99,7 @@ export class DirectClient {
         ...(options.headers || {}),
       };
       if (this.cookie) {
-        headers.Cookie = this.cookie;
+        headers.Cookie = sanitizeCookieHeader(this.cookie);
       }
 
       const res = await this.fetchImpl(url, {
@@ -89,8 +113,8 @@ export class DirectClient {
       const rawSetCookie = res.headers?.get?.('set-cookie');
       const setCookie = Array.isArray(rawSetCookie) ? rawSetCookie.join('; ') : String(rawSetCookie || '');
       if (!this.cookie && setCookie) {
-        const wafMatch = setCookie.match(/HDXWAFID=[^;]+/);
-        if (wafMatch) this.cookie = wafMatch[0];
+        const wafMatch = setCookie.match(/HDXWAFID=[^;\r\n]+/);
+        if (wafMatch) this.cookie = sanitizeCookieHeader(wafMatch[0]);
       }
 
       const location = res.headers?.get?.('location') || '';

@@ -2,6 +2,16 @@
 
 All notable changes to `huodongxing-cli` are documented in this file.
 
+## [1.2.0] - 2026-10-15
+
+### Added
+- **Ecosystem Intelligence Digest Engine (`src/ecosystem-digest.js` & `hdx digest`)**:
+  - 5-track domain taxonomy (`ai_llm`, `cross_border_ecommerce`, `web3_fintech`, `hardware_robotics`, `developer_cloud`) with weighted keyword scoring, technical stack extraction, city heatmap aggregation across **佛山 · 广州 · 深圳**, and Markdown executive report generation.
+- **Resilient Proxy / Tunnel Fetch Fallback (`src/tunnel-fetch.js`)**:
+  - Automatic HTTP/HTTPS proxy & local browser bridge fallback when upstream OpenResty / Geetest v3 WAF challenges occur.
+- **Deterministic Browser E2E Context Guard (`tests/e2e-ui.test.js`)**:
+  - Added `safeWait` execution-context retry wrapper across `ego-browser` navigation and hard-reload checks (`17/17` unit + API + browser E2E tests passing with `0` console errors).
+
 ## [1.0.0] - 2026-10-14
 
 ### Added

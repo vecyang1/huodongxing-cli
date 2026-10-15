@@ -173,6 +173,22 @@ test('Browser E2E (ego-browser): full user journeys, invalid inputs, reload pers
     const task = await taskSpace("hdx-e2e-" + Date.now());
     try {
       const page = task.page("p1");
+      const safeWait = async (fn, timeoutMs = 15000) => {
+        const deadline = Date.now() + timeoutMs;
+        while (Date.now() < deadline) {
+          try {
+            const ok = await page.evaluate(fn);
+            if (ok) return true;
+          } catch (err) {
+            if (!String(err?.message || err).includes("Cannot find context")) {
+              throw err;
+            }
+          }
+          await page.waitForTimeout(150);
+        }
+        throw new Error("Timeout in safeWait after " + timeoutMs + "ms");
+      };
+
       await page.cdp("Emulation.setDeviceMetricsOverride", {
         width: 1440,
         height: 920,
@@ -181,36 +197,37 @@ test('Browser E2E (ego-browser): full user journeys, invalid inputs, reload pers
       });
 
       await page.goto(${JSON.stringify(url)}, { waitUntil: "domcontentloaded" });
-      await page.waitForFunction(() => window.__hdxTelemetry && window.__hdxTelemetry.appReady === true, undefined, { timeout: 15000 });
+      await safeWait(() => window.__hdxTelemetry && window.__hdxTelemetry.appReady === true, 15000);
 
       // 1. Verify Recommend View & City Filtering (Foshan / Guangzhou / Shenzhen)
       await page.click('[data-testid="city-tab-佛山"]', { label: "Filter Foshan events" });
-      const foshanCards = await page.evaluate(() => document.querySelectorAll("#recommend-cards-grid .event-card").length);
-      if (foshanCards !== 1) throw new Error("Expected 1 Foshan card, got " + foshanCards);
+      await safeWait(() => document.querySelectorAll("#recommend-cards-grid .event-card").length === 1, 5000);
 
       await page.click('[data-testid="city-tab-ALL"]', { label: "Show all regional events" });
-      const allCards = await page.evaluate(() => document.querySelectorAll("#recommend-cards-grid .event-card").length);
-      if (allCards !== 3) throw new Error("Expected 3 total regional cards, got " + allCards);
+      await safeWait(() => document.querySelectorAll("#recommend-cards-grid .event-card").length === 3, 5000);
 
       // 2. Open Event Detail Modal & Close
       await page.click('[data-testid="inspect-btn-2882671341711"]', { label: "Inspect Foshan event detail" });
-      await page.waitForFunction(() => document.getElementById("event-detail-modal")?.classList.contains("open"), undefined, { timeout: 5000 });
+      await safeWait(() => document.getElementById("event-detail-modal")?.classList.contains("open"), 5000);
       const modalTitle = await page.evaluate(() => document.getElementById("modal-event-title")?.textContent || "");
       if (!modalTitle.includes("2882671341711")) throw new Error("Unexpected modal title: " + modalTitle);
       await page.click("#btn-close-modal", { label: "Close event modal" });
 
       // 3. Save Foshan card to Watchlist directly from card action
       await page.click('[data-testid="save-btn-2882671341711"]', { label: "Save Foshan event to watchlist" });
-      await page.waitForFunction(() => document.getElementById("nav-watchlist-badge")?.textContent === "1", undefined, { timeout: 5000 });
+      await safeWait(() => document.getElementById("nav-watchlist-badge")?.textContent === "1", 5000);
 
       // 4. Switch to Watchlist View & Test Invalid + Valid Form Submission
       await page.click('[data-testid="nav-watchlist"]', { label: "Open Watchlist tab" });
-      await page.waitForFunction(() => document.getElementById("view-watchlist")?.classList.contains("active"), undefined, { timeout: 5000 });
+      await safeWait(() => document.getElementById("view-watchlist")?.classList.contains("active"), 5000);
 
       // Invalid empty submit
+      await page.evaluate(() => {
+        document.getElementById("wl-input-id").value = "";
+        document.getElementById("wl-input-title").value = "";
+      });
       await page.click("#btn-watchlist-add", { label: "Submit empty watchlist form" });
-      const wlFormErrVisible = await page.evaluate(() => document.getElementById("watchlist-form-error")?.classList.contains("visible"));
-      if (!wlFormErrVisible) throw new Error("Expected watchlist empty form error banner to be visible");
+      await safeWait(() => document.getElementById("watchlist-form-error")?.classList.contains("visible"), 5000);
 
       // Valid manual submit + Archive + Permanent Delete
       await page.evaluate(() => {
@@ -220,41 +237,40 @@ test('Browser E2E (ego-browser): full user journeys, invalid inputs, reload pers
         document.getElementById("wl-input-note").value = "顺德家电与饰品";
       });
       await page.click("#btn-watchlist-add", { label: "Submit valid watchlist item" });
-      await page.waitForFunction(() => document.getElementById("nav-watchlist-badge")?.textContent === "2", undefined, { timeout: 5000 });
+      await safeWait(() => document.getElementById("nav-watchlist-badge")?.textContent === "2", 5000);
 
       await page.click('[data-testid="wl-archive-2999888777666"]', { label: "Archive manual item" });
-      await page.waitForFunction(() => document.getElementById("wl-count-archived")?.textContent === "1", undefined, { timeout: 5000 });
+      await safeWait(() => document.getElementById("wl-count-archived")?.textContent === "1", 5000);
       await page.click('[data-testid="wl-tab-archived"]', { label: "Open archived tab" });
       await page.click('[data-testid="wl-delete-2999888777666"]', { label: "Permanently delete archived item" });
-      await page.waitForFunction(() => document.getElementById("wl-count-archived")?.textContent === "0", undefined, { timeout: 5000 });
+      await safeWait(() => document.getElementById("wl-count-archived")?.textContent === "0", 5000);
       await page.click('[data-testid="wl-tab-active"]', { label: "Return to active watchlist tab" });
 
       // 5. Switch to Explore View & Traverse Subtabs
       await page.click('[data-testid="nav-explore"]', { label: "Open Explore tab" });
-      await page.waitForFunction(() => document.getElementById("view-explore")?.classList.contains("active"), undefined, { timeout: 5000 });
+      await safeWait(() => document.getElementById("view-explore")?.classList.contains("active"), 5000);
       await page.click('[data-testid="explore-tab-topics"]', { label: "Switch to Topics subtab" });
-      await page.waitForFunction(() => document.getElementById("explore-cards-grid")?.textContent?.includes("大湾区 AI 与跨境专题"), undefined, { timeout: 5000 });
+      await safeWait(() => document.getElementById("explore-cards-grid")?.textContent?.includes("大湾区 AI 与跨境专题"), 5000);
       await page.click('[data-testid="explore-tab-organizers"]', { label: "Switch to Organizers subtab" });
-      await page.waitForFunction(() => document.getElementById("explore-cards-grid")?.textContent?.includes("大数跨境"), undefined, { timeout: 5000 });
+      await safeWait(() => document.getElementById("explore-cards-grid")?.textContent?.includes("大数跨境"), 5000);
 
       // 6. Switch to Diagnose View (能读 / 能试 / 能调)
       await page.click('[data-testid="nav-diagnose"]', { label: "Open Diagnose Inspector" });
-      await page.waitForFunction(() => document.getElementById("view-diagnose")?.classList.contains("active"), undefined, { timeout: 5000 });
+      await safeWait(() => document.getElementById("view-diagnose")?.classList.contains("active"), 5000);
 
       // 能试: Empty sample validation
       await page.evaluate(() => { document.getElementById("sample-input").value = ""; });
       await page.click("#btn-run-sample", { label: "Run empty sample test" });
-      await page.waitForFunction(() => document.getElementById("sample-error-banner")?.classList.contains("visible"), undefined, { timeout: 5000 });
+      await safeWait(() => document.getElementById("sample-error-banner")?.classList.contains("visible"), 5000);
 
       // 能试: Blocked cashier preset
       await page.click('[data-testid="preset-cashier"]', { label: "Test cashier block preset" });
-      await page.waitForFunction(() => document.getElementById("sample-result-box")?.textContent?.includes("SEC_BILLING_OR_WITHDRAW"), undefined, { timeout: 5000 });
+      await safeWait(() => document.getElementById("sample-result-box")?.textContent?.includes("SEC_BILLING_OR_WITHDRAW"), 5000);
 
       // 能调: Invalid minIntervalMs (30ms < 100ms)
       await page.evaluate(() => { document.getElementById("cfg-min-interval").value = "30"; });
       await page.click("#btn-save-config", { label: "Save invalid config" });
-      const cfgErrVisible = await page.evaluate(() => document.getElementById("config-form-banner")?.classList.contains("error"));
-      if (!cfgErrVisible) throw new Error("Expected invalid minIntervalMs error banner");
+      await safeWait(() => document.getElementById("config-form-banner")?.classList.contains("error"), 5000);
 
       // 能调: Valid minIntervalMs (1150ms) & persist
       await page.evaluate(() => {
@@ -262,11 +278,12 @@ test('Browser E2E (ego-browser): full user journeys, invalid inputs, reload pers
         document.getElementById("cfg-default-cities").value = "佛山,广州,深圳";
       });
       await page.click("#btn-save-config", { label: "Save valid operator config" });
-      await page.waitForFunction(() => document.getElementById("pacer-status-pill")?.textContent?.includes("1150ms"), undefined, { timeout: 5000 });
+      await safeWait(() => document.getElementById("pacer-status-pill")?.textContent?.includes("1150ms"), 5000);
 
       // 7. Hard Reload & Verify SSOT Persistence (Watchlist + Config)
       await page.reload({ waitUntil: "domcontentloaded" });
-      await page.waitForFunction(() => window.__hdxTelemetry && window.__hdxTelemetry.appReady === true, undefined, { timeout: 15000 });
+      await page.waitForTimeout(250);
+      await safeWait(() => window.__hdxTelemetry && window.__hdxTelemetry.appReady === true, 15000);
 
       const afterReload = await page.evaluate(() => ({
         wlBadge: document.getElementById("nav-watchlist-badge")?.textContent,

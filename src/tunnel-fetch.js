@@ -79,58 +79,65 @@ export function createProxyFetch(proxyUrlStr) {
       });
 
       connectReq.on('connect', (res, socket) => {
-        if (res.statusCode !== 200) {
-          socket.destroy();
-          return reject(new Error(`Proxy CONNECT to ${url.hostname} failed with status ${res.statusCode}`));
-        }
+        let tlsSocket = null;
+        try {
+          if (res.statusCode !== 200) {
+            socket.destroy();
+            return reject(new Error(`Proxy CONNECT to ${url.hostname} failed with status ${res.statusCode}`));
+          }
 
-        const tlsSocket = tls.connect({
-          socket,
-          servername: url.hostname,
-        });
-
-        const httpsReq = https.request({
-          host: url.hostname,
-          path: url.pathname + url.search,
-          method,
-          headers,
-          createConnection: () => tlsSocket,
-        }, (httpsRes) => {
-          const chunks = [];
-          httpsRes.on('data', (c) => chunks.push(c));
-          httpsRes.on('end', () => {
-            const bodyBuffer = Buffer.concat(chunks);
-            const bodyText = bodyBuffer.toString('utf8');
-
-            const responseObj = {
-              status: httpsRes.statusCode,
-              statusText: httpsRes.statusMessage || '',
-              ok: httpsRes.statusCode >= 200 && httpsRes.statusCode < 300,
-              url: targetUrl,
-              headers: {
-                get(key) {
-                  const val = httpsRes.headers[String(key).toLowerCase()];
-                  if (Array.isArray(val)) return val.join('; ');
-                  return typeof val === 'string' ? val : null;
-                },
-              },
-              text: () => Promise.resolve(bodyText),
-              json: () => Promise.resolve(JSON.parse(bodyText)),
-            };
-
-            resolve(responseObj);
+          tlsSocket = tls.connect({
+            socket,
+            servername: url.hostname,
           });
-        });
 
-        httpsReq.on('error', (err) => {
-          tlsSocket.destroy();
+          const httpsReq = https.request({
+            host: url.hostname,
+            path: url.pathname + url.search,
+            method,
+            headers,
+            createConnection: () => tlsSocket,
+          }, (httpsRes) => {
+            const chunks = [];
+            httpsRes.on('data', (c) => chunks.push(c));
+            httpsRes.on('end', () => {
+              const bodyBuffer = Buffer.concat(chunks);
+              const bodyText = bodyBuffer.toString('utf8');
+
+              const responseObj = {
+                status: httpsRes.statusCode,
+                statusText: httpsRes.statusMessage || '',
+                ok: httpsRes.statusCode >= 200 && httpsRes.statusCode < 300,
+                url: targetUrl,
+                headers: {
+                  get(key) {
+                    const val = httpsRes.headers[String(key).toLowerCase()];
+                    if (Array.isArray(val)) return val.join('; ');
+                    return typeof val === 'string' ? val : null;
+                  },
+                },
+                text: () => Promise.resolve(bodyText),
+                json: () => Promise.resolve(JSON.parse(bodyText)),
+              };
+
+              resolve(responseObj);
+            });
+          });
+
+          httpsReq.on('error', (err) => {
+            tlsSocket.destroy();
+            reject(err);
+          });
+
+          if (init.body) {
+            httpsReq.write(init.body);
+          }
+          httpsReq.end();
+        } catch (err) {
+          if (tlsSocket) tlsSocket.destroy();
+          socket.destroy();
           reject(err);
-        });
-
-        if (init.body) {
-          httpsReq.write(init.body);
         }
-        httpsReq.end();
       });
 
       connectReq.on('error', (err) => {
