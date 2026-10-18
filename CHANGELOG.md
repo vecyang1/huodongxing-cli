@@ -2,6 +2,14 @@
 
 All notable changes to `huodongxing-cli` are documented in this file.
 
+## [1.2.2] - 2026-10-18
+
+### Fixed
+- **Active Local Override Priority in Diagnostic Reconciler (`src/diagnose.js`)**:
+  - Updated `checkUpstreamAdapterStatus` to prioritize the active OpenCLI local override path (`~/.opencli/clis/huodongxing/events.js`) over the raw global npm package path (`~/.hermes/node/lib/node_modules/@jackwener/opencli/clis/huodongxing/events.js`), preventing false-positive `unpatched_d_ts_bug` diagnostic reports after `npm install -g @jackwener/opencli@latest` upgrades while preserving automatic repair across both paths.
+- **OpenCLI 2.0.0 Adapter Sync (`opencli-adapter/events.js`)**:
+  - Synchronized the 3-way merged OpenCLI 2.0.0 `events.js` (`browser: false`, `parseInt(..., 10)`, `resolveGregorianYearWithWeekday`, `upcoming_only`, and `status=1`) into `opencli-adapter/events.js`.
+
 ## [1.2.1] - 2026-10-15
 
 ### Added

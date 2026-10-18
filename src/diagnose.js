@@ -12,20 +12,30 @@ import {
 } from './parsers.js';
 
 export const DEFAULT_BASE_URL = 'https://www.huodongxing.com';
+export const LOCAL_OVERRIDE_OPENCLI_EVENTS_PATH = path.join(
+  os.homedir(),
+  '.opencli',
+  'clis',
+  'huodongxing',
+  'events.js'
+);
+export const NODE_MODULES_OPENCLI_EVENTS_PATH = path.join(
+  os.homedir(),
+  '.hermes',
+  'node',
+  'lib',
+  'node_modules',
+  '@jackwener',
+  'opencli',
+  'clis',
+  'huodongxing',
+  'events.js'
+);
 export const UPSTREAM_OPENCLI_EVENTS_PATH =
   process.env.HDX_UPSTREAM_OPENCLI_EVENTS ||
-  path.join(
-    os.homedir(),
-    '.hermes',
-    'node',
-    'lib',
-    'node_modules',
-    '@jackwener',
-    'opencli',
-    'clis',
-    'huodongxing',
-    'events.js'
-  );
+  (fs.existsSync(LOCAL_OVERRIDE_OPENCLI_EVENTS_PATH)
+    ? LOCAL_OVERRIDE_OPENCLI_EVENTS_PATH
+    : NODE_MODULES_OPENCLI_EVENTS_PATH);
 
 export function getConfigOverrideFile() {
   return (
