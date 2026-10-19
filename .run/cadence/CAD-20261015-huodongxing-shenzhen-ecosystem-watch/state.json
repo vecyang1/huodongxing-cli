@@ -1,0 +1,20 @@
+{
+  "cadenceCard": "CAD-20261015-huodongxing-shenzhen-ecosystem-watch",
+  "projectRef": "huodongxing-shenzhen-ecosystem-watch",
+  "lastRunTimestamp": "2026-10-19T10:06:50.000+08:00",
+  "lastRunDate": "2026-10-19",
+  "status": "success",
+  "executionReceipt": "reports/runs/2026-10-19.md",
+  "deliverables": {
+    "gbaRecommendations": {
+      "durablePath": "/Users/vecsatfoxmailcom/Documents/Cowork/Antigravity Cowork/26.06.06 2nd Brain/vault/research/events/2026-10-19-huodongxing-gba-recommendations.md",
+      "count": 20
+    },
+    "ecosystemDigest": {
+      "durablePath": "/Users/vecsatfoxmailcom/Documents/Cowork/Antigravity Cowork/26.06.06 2nd Brain/vault/research/events/2026-10-19-huodongxing-ecosystem-digest.md",
+      "count": 34,
+      "onlineAttendanceCount": 24,
+      "offlineAttendanceCount": 10
+    }
+  }
+}

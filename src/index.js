@@ -259,25 +259,29 @@ export class HuodongxingClient {
     const upcomingOnly = options.upcomingOnly !== false;
 
     for (const cityName of resolvedRegion.cities) {
-      const res = await this._dispatch(
-        'searchEvents',
-        [
-          {
-            city: cityName,
-            keyword: options.queryKeyword || '',
-            tag: options.tag || '',
-            orderby: options.orderby || 'o',
-            date: options.date || '',
-            dateTo: options.dateTo || '',
-            page: Number(options.page || 1),
-            limit: 30,
-            upcomingOnly,
-          },
-        ],
-        { requiresAuth: false }
-      );
-      activeEngine = res.engine || activeEngine;
-      rawItemsByCity[cityName] = res.items || [];
+      try {
+        const res = await this._dispatch(
+          'searchEvents',
+          [
+            {
+              city: cityName,
+              keyword: options.queryKeyword || '',
+              tag: options.tag || '',
+              orderby: options.orderby || 'o',
+              date: options.date || '',
+              dateTo: options.dateTo || '',
+              page: Number(options.page || 1),
+              limit: 30,
+              upcomingOnly,
+            },
+          ],
+          { requiresAuth: false }
+        );
+        activeEngine = res.engine || activeEngine;
+        rawItemsByCity[cityName] = res.items || [];
+      } catch (cityErr) {
+        rawItemsByCity[cityName] = [];
+      }
     }
 
     const scored = parsers.scoreAndRankRegionalEvents(rawItemsByCity, {

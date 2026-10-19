@@ -17,7 +17,7 @@ import {
   parseTopicsHtml,
   parseUserStateHtml,
 } from './parsers.js';
-import { resilientFetch, autoUnbanGeetest, ulcsFetch } from './tunnel-fetch.js';
+import { resilientFetch, autoUnbanGeetest, ulcsFetch, fetchFreshCookiesViaEgoBrowser } from './tunnel-fetch.js';
 
 const DEFAULT_BASE_URL = 'https://www.huodongxing.com';
 const DEFAULT_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36';
@@ -183,6 +183,24 @@ export class DirectClient {
               redirect: 'manual',
             });
             location = res.headers?.get?.('location') || '';
+            if ((res.status === 301 || res.status === 302) && /verify\.huodongxing\.com\/gt3/i.test(location)) {
+              try {
+                const freshCookies = await fetchFreshCookiesViaEgoBrowser(url);
+                if (freshCookies) {
+                  this.setCookie(freshCookies);
+                  headers.Cookie = this.cookie;
+                  res = await this.fetchImpl(url, {
+                    method,
+                    headers,
+                    body: options.body ?? undefined,
+                    redirect: 'manual',
+                  });
+                  location = res.headers?.get?.('location') || '';
+                }
+              } catch {
+                // Ignore browser cookie fetch error and proceed to final redirect evaluation
+              }
+            }
           }
         }
       }
