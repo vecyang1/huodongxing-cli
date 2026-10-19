@@ -216,7 +216,13 @@ export async function ulcsFetch(targetUrl, init = {}, options = {}) {
             return resolve(null);
           }
           try {
-            const parsed = JSON.parse(raw);
+            let jsonStr = raw;
+            const firstBrace = raw.indexOf('{');
+            const lastBrace = raw.lastIndexOf('}');
+            if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+              jsonStr = raw.slice(firstBrace, lastBrace + 1);
+            }
+            const parsed = JSON.parse(jsonStr);
             const status = Number(parsed.status || (err ? 500 : 200));
             const bodyText = String(parsed.body ?? '');
             resolve({
@@ -382,6 +388,47 @@ export async function autoUnbanGeetest(verifyUrl = 'https://www.huodongxing.com/
   return new Promise((resolve) => {
     const child = execFile('ego-browser', ['nodejs', '-e', script], { timeout: 25000 }, (err) => {
       resolve(!err);
+    });
+    child.stdin?.end();
+  });
+}
+
+/**
+ * Autonomously retrieves fresh, valid session cookies (including AccupassWeb & HDXWAFID)
+ * from huodongxing.com via ego-browser with Tier-1 DOM batching.
+ * @param {string} [targetUrl='https://www.huodongxing.com/events']
+ * @returns {Promise<string|null>}
+ */
+export async function fetchFreshCookiesViaEgoBrowser(targetUrl = 'https://www.huodongxing.com/events') {
+  const script = `
+    const task = await taskSpace("hdx-cookie-fetch-" + Date.now());
+    try {
+      const page = task.page("p1");
+      await page.goto(${JSON.stringify(targetUrl)}, { waitUntil: "domcontentloaded" });
+      await page.waitForTimeout(2000);
+      const cookie = await page.evaluate(() => document.cookie);
+      process.stdout.write(JSON.stringify({ ok: true, cookie }));
+    } catch (e) {
+      process.stdout.write(JSON.stringify({ ok: false, error: e.message }));
+    } finally {
+      await task.finish({ keep: [] });
+    }
+  `;
+
+  return new Promise((resolve) => {
+    const child = execFile('ego-browser', ['nodejs', '-e', script], { timeout: 25000 }, (err, stdout) => {
+      try {
+        const raw = String(stdout || '').trim();
+        const f = raw.indexOf('{');
+        const l = raw.lastIndexOf('}');
+        if (f !== -1 && l !== -1 && l > f) {
+          const res = JSON.parse(raw.slice(f, l + 1));
+          if (res.ok && res.cookie) return resolve(res.cookie);
+        }
+        resolve(null);
+      } catch {
+        resolve(null);
+      }
     });
     child.stdin?.end();
   });

@@ -2,6 +2,21 @@
 
 All notable changes to `huodongxing-cli` are documented in this file.
 
+## [1.2.3] - 2026-10-19
+
+### Added
+- **Ego-Browser Autonomous Cookie Self-Healing (`src/tunnel-fetch.js` & `src/direct-client.js`)**:
+  - Added and exported `fetchFreshCookiesViaEgoBrowser` leveraging `ego-browser` Tier-1 DOM batching to retrieve valid `AccupassWeb` and `HDXWAFID` session cookies.
+  - Wired autonomous cookie refresh into `DirectClient.fetchHtml` when Geetest 302 challenges persist, enabling seamless zero-touch unattended operation.
+
+### Fixed
+- **Per-City Fault Isolation in Regional Engine (`src/index.js`)**:
+  - Wrapped individual city searches in `recommendEvents` with try-catch boundaries, ensuring single-city network jitter or rate limits never abort the overall GBA ranking.
+- **Robust JSON Delimiter Boundary Parsing (`src/tunnel-fetch.js`)**:
+  - Isolated JSON objects via first `{` and last `}` index boundaries in `ulcsFetch` stdout parser, preventing `SyntaxError` from terminal notices, shell banners, or telemetry directives.
+- **ULCS CLI Parameter Forwarding Compatibility (`ultra-low-cost-scraper`)**:
+  - Patched `scripts/scraper_cli.py` across all agent skills roots to accept `**kwargs: Any` in `fetch_url`, resolving the `TypeError` caused by modern `cache_ttl` arguments.
+
 ## [1.2.2] - 2026-10-18
 
 ### Fixed
