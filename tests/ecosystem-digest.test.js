@@ -55,7 +55,7 @@ test('generateEcosystemDigest produces structured report with mock client', asyn
           {
             id: 'mock1',
             title: '2026 AI短剧产业生态创新大会',
-            time: '10/23 周五 14:00',
+            time: '2027/10/23 周六 14:00',
             organizer: '短剧观察社',
             city: '深圳',
             url: 'https://www.huodongxing.com/event/mock1',
@@ -69,7 +69,7 @@ test('generateEcosystemDigest produces structured report with mock client', asyn
           {
             id: 'mock2',
             title: '亚马逊跨境卖家黑五流量峰会',
-            time: '10/25 周日 09:30',
+            time: '2027/10/25 周一 09:30',
             organizer: '出海精英俱乐部',
             city: '深圳',
             url: 'https://www.huodongxing.com/event/mock2',
@@ -137,7 +137,7 @@ test('generateEcosystemDigest populates onlineEvents and supports onlineOnly mod
           {
             id: 'mock-online',
             title: 'AI智能体远程公开课（腾讯会议直播）',
-            time: '10/24 周六 14:00',
+            time: '2027/10/24 周日 14:00',
             eventType: 'online',
             location: '线上活动',
             organizer: 'AI研习社',
@@ -146,7 +146,7 @@ test('generateEcosystemDigest populates onlineEvents and supports onlineOnly mod
           {
             id: 'mock-offline',
             title: '广州国际饰品展线下洽谈',
-            time: '10/26 周一 09:00',
+            time: '2027/10/26 周二 09:00',
             eventType: 'offline',
             location: '广州琶洲',
             organizer: '展会主办',

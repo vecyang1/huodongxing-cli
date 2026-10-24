@@ -7,11 +7,11 @@
   "executionReceipt": "reports/runs/2026-10-19.md",
   "deliverables": {
     "gbaRecommendations": {
-      "durablePath": "/Users/vecsatfoxmailcom/Documents/Cowork/Antigravity Cowork/26.06.06 2nd Brain/vault/research/events/2026-10-19-huodongxing-gba-recommendations.md",
+      "durablePath": "vault/research/events/2026-10-19-huodongxing-gba-recommendations.md",
       "count": 20
     },
     "ecosystemDigest": {
-      "durablePath": "/Users/vecsatfoxmailcom/Documents/Cowork/Antigravity Cowork/26.06.06 2nd Brain/vault/research/events/2026-10-19-huodongxing-ecosystem-digest.md",
+      "durablePath": "vault/research/events/2026-10-19-huodongxing-ecosystem-digest.md",
       "count": 34,
       "onlineAttendanceCount": 24,
       "offlineAttendanceCount": 10
