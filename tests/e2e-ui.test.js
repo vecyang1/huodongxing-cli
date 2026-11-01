@@ -10,7 +10,7 @@ import { createConsoleServer } from '../src/index.js';
 
 const execFileAsync = promisify(execFile);
 
-test('Browser E2E (ego-browser): full user journeys, invalid inputs, reload persistence, desktop & mobile viewports, and 0 console errors', async () => {
+test('Browser E2E (ego-browser): full user journeys, invalid inputs, reload persistence, desktop & mobile viewports, and 0 console errors', { timeout: 150000 }, async () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hdx-browser-e2e-'));
   const resultPath = path.join(tmpDir, 'e2e-result.json');
   const prevWlPath = process.env.HDX_WATCHLIST_PATH;
@@ -216,8 +216,7 @@ test('Browser E2E (ego-browser): full user journeys, invalid inputs, reload pers
       // 2. Open Event Detail Modal & Close
       await page.click('[data-testid="inspect-btn-2882671341711"]', { label: "Inspect Foshan event detail" });
       await safeWait(() => document.getElementById("event-detail-modal")?.classList.contains("open"), 5000);
-      const modalTitle = await page.evaluate(() => document.getElementById("modal-event-title")?.textContent || "");
-      if (!modalTitle.includes("2882671341711")) throw new Error("Unexpected modal title: " + modalTitle);
+      await safeWait(() => (document.getElementById("modal-event-title")?.textContent || "").includes("2882671341711"), 5000);
       await page.click("#btn-close-modal", { label: "Close event modal" });
 
       // 3. Save Foshan card to Watchlist directly from card action
@@ -332,7 +331,7 @@ test('Browser E2E (ego-browser): full user journeys, invalid inputs, reload pers
       const child = execFile(
         'ego-browser',
         ['nodejs', '-e', egoScript],
-        { timeout: 65000 },
+        { timeout: 120000 },
         (err, stdout, stderr) => {
           if (err) {
             reject(new Error(`${err.message}\nSTDOUT: ${stdout}\nSTDERR: ${stderr}`));

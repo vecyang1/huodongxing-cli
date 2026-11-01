@@ -2,6 +2,21 @@
 
 All notable changes to `huodongxing-cli` are documented in this file.
 
+## [2026-10-28] - 2026-10-28
+
+### Fixes
+- Sanitize local workspace paths and future-proof test dates (`dde23e5`)
+
+## [1.2.4] - 2026-10-26
+
+### Fixed
+- **E2E Browser Test Timeout Resilience (`tests/e2e-ui.test.js`)**:
+  - Extended child process execution timeout in `ego-browser` E2E test harness from 65,000ms to 120,000ms with a 150,000ms test gate budget, preventing intermittent test failures during concurrent host resource contention across 8 full-journey UI validation stages.
+
+### Added
+- **Weekly Ecosystem Radar Cadence (2026-10-26)**:
+  - Delivered GBA Top 20 recommendation ranking (`2026-10-26-huodongxing-gba-recommendations.md`) and 60-event multi-track ecosystem digest with 26 online webinar tracks (`2026-10-26-huodongxing-ecosystem-digest.md`) to knowledge vault and local truth ledgers.
+
 ## [1.2.3] - 2026-10-19
 
 ### Added

@@ -1,20 +1,20 @@
 {
   "cadenceCard": "CAD-20261015-huodongxing-shenzhen-ecosystem-watch",
   "projectRef": "huodongxing-shenzhen-ecosystem-watch",
-  "lastRunTimestamp": "2026-10-19T10:06:50.000+08:00",
-  "lastRunDate": "2026-10-19",
+  "lastRunTimestamp": "2026-10-26T09:16:30.000+08:00",
+  "lastRunDate": "2026-10-26",
   "status": "success",
-  "executionReceipt": "reports/runs/2026-10-19.md",
+  "executionReceipt": "reports/runs/2026-10-26.md",
   "deliverables": {
     "gbaRecommendations": {
-      "durablePath": "vault/research/events/2026-10-19-huodongxing-gba-recommendations.md",
+      "durablePath": "vault/research/events/2026-10-26-huodongxing-gba-recommendations.md",
       "count": 20
     },
     "ecosystemDigest": {
-      "durablePath": "vault/research/events/2026-10-19-huodongxing-ecosystem-digest.md",
-      "count": 34,
-      "onlineAttendanceCount": 24,
-      "offlineAttendanceCount": 10
+      "durablePath": "vault/research/events/2026-10-26-huodongxing-ecosystem-digest.md",
+      "count": 60,
+      "onlineAttendanceCount": 26,
+      "offlineAttendanceCount": 34
     }
   }
 }
