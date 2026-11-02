@@ -38,7 +38,7 @@ import {
 
 test('package metadata & AGPL-3.0-or-later license contract', () => {
   assert.equal(PACKAGE_NAME, 'huodongxing-cli');
-  assert.equal(VERSION, '1.2.4');
+  assert.equal(VERSION, '1.2.5');
   assert.equal(LICENSE, 'AGPL-3.0-or-later');
 });
 

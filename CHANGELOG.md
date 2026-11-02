@@ -2,6 +2,16 @@
 
 All notable changes to `huodongxing-cli` are documented in this file.
 
+## [1.2.5] - 2026-11-02
+
+### Added
+- **Weekly Ecosystem Radar Cadence (2026-11-02)**:
+  - Delivered GBA Top 20 recommendation ranking (`2026-11-02-huodongxing-gba-recommendations.md`) and 45-event multi-track ecosystem digest with 10 online webinar tracks (`2026-11-02-huodongxing-ecosystem-digest.md`) to 2nd Brain vault and local truth ledgers.
+
+### Fixed
+- **Geetest v3 Auto-Unban Radar Trigger Hardening (`src/tunnel-fetch.js`)**:
+  - Automatically activates the inner `.geetest_radar_btn` element in `autoUnbanGeetest` when `verify.huodongxing.com/gt3` challenges appear, ensuring the verification canvas (`.geetest_canvas_bg`) immediately renders for pixel-diff gap calculation and CDP mouse sliding instead of idling on component load.
+
 ## [2026-10-28] - 2026-10-28
 
 ### Fixes

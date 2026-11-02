@@ -323,6 +323,8 @@ export async function autoUnbanGeetest(verifyUrl = 'https://www.huodongxing.com/
             if (!location.hostname.includes("verify.huodongxing.com")) return "unbanned";
             const btn = document.querySelector("#unbanBtn");
             if (btn && !btn.classList.contains("loading")) btn.click();
+            const radar = document.querySelector(".geetest_radar_btn");
+            if (radar) radar.click();
             const bg = document.querySelector(".geetest_canvas_bg");
             return bg && bg.width > 0 ? "ready" : "waiting";
           });
