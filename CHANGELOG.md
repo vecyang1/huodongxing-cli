@@ -6,7 +6,7 @@ All notable changes to `huodongxing-cli` are documented in this file.
 
 ### Added
 - **Weekly Ecosystem Radar Cadence (2026-11-02)**:
-  - Delivered GBA Top 20 recommendation ranking (`2026-11-02-huodongxing-gba-recommendations.md`) and 45-event multi-track ecosystem digest with 10 online webinar tracks (`2026-11-02-huodongxing-ecosystem-digest.md`) to 2nd Brain vault and local truth ledgers.
+  - Delivered GBA Top 20 recommendation ranking (`2026-11-02-huodongxing-gba-recommendations.md`) and 45-event multi-track ecosystem digest with 10 online webinar tracks (`2026-11-02-huodongxing-ecosystem-digest.md`) to knowledge vault vault and local truth ledgers.
 
 ### Fixed
 - **Geetest v3 Auto-Unban Radar Trigger Hardening (`src/tunnel-fetch.js`)**:
