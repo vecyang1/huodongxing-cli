@@ -2,6 +2,13 @@
 
 All notable changes to `huodongxing-cli` are documented in this file.
 
+## [1.2.6] - 2026-11-09
+
+### Added
+- **Weekly Ecosystem Radar Cadence (2026-11-09)**:
+  - Delivered GBA Top 20 recommendation ranking (`2026-11-09-huodongxing-gba-recommendations.md`) and 63-event multi-track ecosystem digest with 26 online webinar tracks (`2026-11-09-huodongxing-ecosystem-digest.md`) across Shenzhen (16), Guangzhou (12), Foshan (4), Shanghai (5) to knowledge vault and local truth ledgers.
+  - Full test baseline verified: 26/26 unit, integration, and `ego-browser` E2E tests 100% green with zero console/network errors.
+
 ## [1.2.5] - 2026-11-02
 
 ### Added
